@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAppStore } from '@/lib/store';
 import type { Product, Warehouse, PalletType } from '@/lib/types';
+import { parseProductsCSV, generateProductsTemplate, downloadCSV } from '@/lib/csv';
 import clsx from 'clsx';
 
 const PRESET_COLORS = [
@@ -19,6 +20,7 @@ export default function SettingsPage() {
     addProduct, updateProduct, removeProduct,
     addWarehouse, updateWarehouse, removeWarehouse,
     addPalletType, updatePalletType, removePalletType,
+    upsertProducts,
     resetToDefaults,
   } = useAppStore();
 
@@ -27,6 +29,11 @@ export default function SettingsPage() {
   const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null);
   const [editingPallet, setEditingPallet] = useState<PalletType | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+
+  // 製品CSV インポート用
+  const prodCsvRef = useRef<HTMLInputElement>(null);
+  const [csvPreview, setCsvPreview] = useState<ReturnType<typeof parseProductsCSV> | null>(null);
+  const [csvImported, setCsvImported] = useState(false);
 
   // 製品の新規追加用空テンプレート
   const newProduct = (): Product => ({
@@ -65,6 +72,24 @@ export default function SettingsPage() {
     if (exists) updatePalletType(editingPallet);
     else addPalletType(editingPallet);
     setEditingPallet(null);
+  };
+
+  const handleProductCsvFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      setCsvPreview(parseProductsCSV(text, palletTypes, products));
+      setCsvImported(false);
+    };
+    reader.readAsText(file, 'utf-8');
+  };
+
+  const handleProductCsvImport = () => {
+    if (!csvPreview) return;
+    upsertProducts(csvPreview.products);
+    setCsvImported(true);
   };
 
   return (
@@ -134,6 +159,132 @@ export default function SettingsPage() {
       {/* ── 製品マスタ ── */}
       {tab === 'products' && (
         <div>
+          {/* CSVインポートパネル */}
+          <details className="mb-4 bg-slate-50 border border-slate-200 rounded-lg">
+            <summary className="px-4 py-3 text-sm font-medium text-slate-600 cursor-pointer select-none hover:bg-slate-100 rounded-lg">
+              📥 CSVで一括インポート
+            </summary>
+            <div className="px-4 pb-4 pt-2 border-t border-slate-200">
+              {/* テンプレートDL */}
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs text-slate-500">テンプレートDL：</span>
+                <button
+                  onClick={() =>
+                    downloadCSV(
+                      generateProductsTemplate(products),
+                      '製品マスタ.csv',
+                    )
+                  }
+                  className="text-xs px-3 py-1.5 bg-slate-700 text-white rounded hover:bg-slate-800 transition-colors"
+                >
+                  現在の製品をCSVでダウンロード
+                </button>
+              </div>
+
+              {/* フォーマット説明 */}
+              <div className="mb-3 text-xs text-slate-500 bg-white border border-slate-200 rounded p-2">
+                <span className="font-medium">フォーマット：</span>
+                <code className="ml-1 text-slate-700">製品コード, 製品名, 個/枚, パレット型, カラー(hex)</code>
+                <span className="ml-2 text-slate-400">※カラー列は省略可</span>
+              </div>
+
+              {/* ファイル選択 */}
+              <div className="flex items-center gap-3 mb-3">
+                <input
+                  ref={prodCsvRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={handleProductCsvFile}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => { prodCsvRef.current?.click(); setCsvPreview(null); setCsvImported(false); }}
+                  className="text-sm px-4 py-2 border border-slate-300 rounded-lg hover:bg-white transition-colors"
+                >
+                  CSVファイルを選択
+                </button>
+                {csvPreview && (
+                  <span className="text-xs text-slate-500">
+                    {csvPreview.rows.length}件を読み込みました
+                    （新規 {csvPreview.rows.filter((r) => r.isNew).length} 件 ／
+                    更新 {csvPreview.rows.filter((r) => !r.isNew).length} 件）
+                  </span>
+                )}
+              </div>
+
+              {/* 警告 */}
+              {csvPreview && csvPreview.warnings.length > 0 && (
+                <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 space-y-0.5">
+                  {csvPreview.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+                </div>
+              )}
+
+              {/* プレビューテーブル */}
+              {csvPreview && csvPreview.rows.length > 0 && (
+                <div className="overflow-x-auto mb-3">
+                  <table className="text-xs border-collapse w-full bg-white rounded border border-slate-200">
+                    <thead>
+                      <tr className="bg-slate-50">
+                        <th className="px-3 py-2 text-left font-semibold text-slate-500 border-r border-slate-200">状態</th>
+                        <th className="px-3 py-2 text-left font-semibold text-slate-500">色</th>
+                        <th className="px-3 py-2 text-left font-semibold text-slate-500">製品コード</th>
+                        <th className="px-3 py-2 text-left font-semibold text-slate-500">製品名</th>
+                        <th className="px-3 py-2 text-right font-semibold text-slate-500">個/枚</th>
+                        <th className="px-3 py-2 text-left font-semibold text-slate-500">パレット型</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {csvPreview.rows.map(({ product, isNew, warnings: rw }) => (
+                        <tr
+                          key={product.code}
+                          className={clsx(
+                            'border-t border-slate-100',
+                            rw.length > 0 ? 'bg-amber-50' : isNew ? 'bg-emerald-50' : '',
+                          )}
+                        >
+                          <td className="px-3 py-1.5 border-r border-slate-200">
+                            <span className={clsx(
+                              'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
+                              isNew ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700',
+                            )}>
+                              {isNew ? '新規' : '更新'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-1.5">
+                            <span className="w-4 h-4 rounded border border-black/10 block" style={{ background: product.color }} />
+                          </td>
+                          <td className="px-3 py-1.5 font-mono text-slate-500">{product.code}</td>
+                          <td className="px-3 py-1.5 font-medium text-slate-700">{product.name}</td>
+                          <td className="px-3 py-1.5 text-right text-slate-600">{product.capacityPerPallet}</td>
+                          <td className="px-3 py-1.5 text-slate-500">{product.palletType}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {csvPreview && (
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleProductCsvImport}
+                    disabled={csvImported}
+                    className={clsx(
+                      'px-4 py-2 text-sm rounded-lg transition-colors',
+                      csvImported
+                        ? 'bg-emerald-100 text-emerald-700 cursor-default'
+                        : 'bg-brand-600 text-white hover:bg-brand-700',
+                    )}
+                  >
+                    {csvImported ? '✓ インポート済み' : 'インポートする'}
+                  </button>
+                  {csvImported && <span className="text-xs text-emerald-600">製品マスタに反映されました</span>}
+                  <span className="text-xs text-slate-400 ml-auto">※既存の製品コードは上書き更新、新規コードは末尾に追加されます</span>
+                </div>
+              )}
+            </div>
+          </details>
+
           <div className="flex justify-end mb-3">
             <button
               onClick={() => setEditingProduct(newProduct())}

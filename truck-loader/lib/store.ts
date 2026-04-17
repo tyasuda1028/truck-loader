@@ -39,6 +39,7 @@ interface AppState {
   addPalletType: (palletType: PalletType) => void;
   updatePalletType: (palletType: PalletType) => void;
   removePalletType: (code: string) => void;
+  upsertProducts: (incoming: Product[]) => void;
   resetToDefaults: () => void;
 }
 
@@ -142,6 +143,17 @@ export const useAppStore = create<AppState>()(
         set((s) => ({
           palletTypes: s.palletTypes.filter((p) => p.code !== code),
         })),
+
+      upsertProducts: (incoming) =>
+        set((s) => {
+          const map = Object.fromEntries(s.products.map((p) => [p.code, p]));
+          for (const p of incoming) map[p.code] = p;
+          // 既存の順序を保ちつつ新規を末尾に追加
+          const existingCodes = new Set(s.products.map((p) => p.code));
+          const updated = s.products.map((p) => map[p.code]);
+          const added = incoming.filter((p) => !existingCodes.has(p.code));
+          return { products: [...updated, ...added] };
+        }),
 
       resetToDefaults: () => set(defaultState),
     }),
