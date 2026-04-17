@@ -1,11 +1,18 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { useAppStore } from '@/lib/store';
 import { calcAllPlans, calcSendQty } from '@/lib/calculations';
+import {
+  parseProductionCSV,
+  parseInventoryCSV,
+  generateProductionTemplate,
+  generateInventoryTemplate,
+  downloadCSV,
+} from '@/lib/csv';
 import clsx from 'clsx';
 
-type Tab = 'production' | 'inventory' | 'location' | 'ratio';
+type Tab = 'production' | 'inventory' | 'location' | 'ratio' | 'csv';
 
 export default function ProductionPage() {
   const {
@@ -14,9 +21,21 @@ export default function ProductionPage() {
     inventoryStock, locationStock,
     setProductionQty, setRatio,
     setInventoryStock, setLocationStock,
+    importProductionPlan, importInventoryStockBulk,
   } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<Tab>('production');
+
+  // CSV インポート用ステート
+  const prodFileRef = useRef<HTMLInputElement>(null);
+  const invFileRef  = useRef<HTMLInputElement>(null);
+  const now = new Date();
+  const [templateYear,  setTemplateYear]  = useState(now.getFullYear());
+  const [templateMonth, setTemplateMonth] = useState(now.getMonth() + 1);
+  const [prodPreview, setProdPreview] = useState<ReturnType<typeof parseProductionCSV> | null>(null);
+  const [invPreview,  setInvPreview]  = useState<ReturnType<typeof parseInventoryCSV>  | null>(null);
+  const [prodImported, setProdImported] = useState(false);
+  const [invImported,  setInvImported]  = useState(false);
 
   const sendQty = useMemo(
     () => calcSendQty(products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock),
@@ -35,11 +54,49 @@ export default function ProductionPage() {
     ),
   );
 
+  // ─── CSV ハンドラ ────────────────────────────────────────────────────
+  const handleProdFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      setProdPreview(parseProductionCSV(text, products));
+      setProdImported(false);
+    };
+    reader.readAsText(file, 'utf-8');
+  };
+
+  const handleInvFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      setInvPreview(parseInventoryCSV(text, products));
+      setInvImported(false);
+    };
+    reader.readAsText(file, 'utf-8');
+  };
+
+  const handleProdImport = () => {
+    if (!prodPreview) return;
+    importProductionPlan(prodPreview.dailyPlan, prodPreview.productionPlan);
+    setProdImported(true);
+  };
+
+  const handleInvImport = () => {
+    if (!invPreview) return;
+    importInventoryStockBulk(invPreview.inventoryStock);
+    setInvImported(true);
+  };
+
   const tabs: { key: Tab; label: string }[] = [
     { key: 'production', label: '📋 週間生産数' },
     { key: 'inventory',  label: '📦 全体在庫数' },
     { key: 'location',   label: '🏭 拠点別現在庫' },
     { key: 'ratio',      label: '📊 配分比率' },
+    { key: 'csv',        label: '📥 CSVインポート' },
   ];
 
   return (
@@ -305,6 +362,260 @@ export default function ProductionPage() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── タブ⑤：CSVインポート ── */}
+      {activeTab === 'csv' && (
+        <div className="flex flex-col gap-8">
+
+          {/* ── 生産計画インポート ── */}
+          <section className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
+            <h2 className="text-sm font-bold text-slate-700 mb-1">生産計画 CSVインポート</h2>
+            <p className="text-xs text-slate-500 mb-4">
+              製品コードを行、日付を列としたCSVを取り込みます。取り込んだ日付の合計が生産数として反映されます。
+            </p>
+
+            {/* テンプレートDL */}
+            <div className="flex flex-wrap items-center gap-2 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <span className="text-xs text-slate-600 font-medium">テンプレートDL：</span>
+              <select
+                value={templateYear}
+                onChange={(e) => setTemplateYear(Number(e.target.value))}
+                className="text-xs border border-slate-200 rounded px-2 py-1 bg-white"
+              >
+                {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map((y) => (
+                  <option key={y} value={y}>{y}年</option>
+                ))}
+              </select>
+              <select
+                value={templateMonth}
+                onChange={(e) => setTemplateMonth(Number(e.target.value))}
+                className="text-xs border border-slate-200 rounded px-2 py-1 bg-white"
+              >
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <option key={m} value={m}>{m}月</option>
+                ))}
+              </select>
+              <button
+                onClick={() =>
+                  downloadCSV(
+                    generateProductionTemplate(products, templateYear, templateMonth),
+                    `生産計画_${templateYear}-${String(templateMonth).padStart(2,'0')}.csv`,
+                  )
+                }
+                className="text-xs px-3 py-1.5 bg-slate-700 text-white rounded hover:bg-slate-800 transition-colors"
+              >
+                ダウンロード
+              </button>
+            </div>
+
+            {/* ファイル選択 */}
+            <div className="flex items-center gap-3 mb-4">
+              <input
+                ref={prodFileRef}
+                type="file"
+                accept=".csv,text/csv"
+                onChange={handleProdFile}
+                className="hidden"
+              />
+              <button
+                onClick={() => { prodFileRef.current?.click(); setProdPreview(null); setProdImported(false); }}
+                className="text-sm px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                CSVファイルを選択
+              </button>
+              {prodPreview && (
+                <span className="text-xs text-slate-500">
+                  {prodPreview.rows.length}製品 × {prodPreview.dates.length}日分を読み込みました
+                </span>
+              )}
+            </div>
+
+            {/* 警告 */}
+            {prodPreview && prodPreview.warnings.length > 0 && (
+              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 space-y-0.5">
+                {prodPreview.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+              </div>
+            )}
+
+            {/* プレビューテーブル */}
+            {prodPreview && prodPreview.rows.length > 0 && (
+              <div className="overflow-x-auto mb-4">
+                <table className="text-xs border-collapse w-full">
+                  <thead>
+                    <tr className="bg-slate-50">
+                      <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 border-r border-slate-200 min-w-[180px]">製品</th>
+                      {prodPreview.dates.slice(0, 15).map((d) => (
+                        <th key={d} className="px-2 py-2 text-center font-semibold text-slate-400 min-w-[52px]">
+                          {d.slice(5)} {/* MM-DD */}
+                        </th>
+                      ))}
+                      {prodPreview.dates.length > 15 && (
+                        <th className="px-2 py-2 text-center text-slate-400">…+{prodPreview.dates.length - 15}日</th>
+                      )}
+                      <th className="px-3 py-2 text-right font-semibold text-slate-600 min-w-[80px]">合計（個）</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {prodPreview.rows.map((row) => (
+                      <tr key={row.code} className={clsx('border-t border-slate-100', !row.found && 'bg-amber-50')}>
+                        <td className="px-3 py-1.5 sticky left-0 bg-white border-r border-slate-200">
+                          <div className="font-medium text-slate-700">{row.name}</div>
+                          <div className="text-[10px] text-slate-400 font-mono">{row.code}</div>
+                        </td>
+                        {row.dailyQty.slice(0, 15).map((q, i) => (
+                          <td key={i} className="px-2 py-1.5 text-center text-slate-600">
+                            {q > 0 ? q : <span className="text-slate-200">—</span>}
+                          </td>
+                        ))}
+                        {prodPreview.dates.length > 15 && <td />}
+                        <td className="px-3 py-1.5 text-right font-bold text-slate-800">{row.total.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {prodPreview && (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleProdImport}
+                  disabled={prodImported}
+                  className={clsx(
+                    'px-4 py-2 text-sm rounded-lg transition-colors',
+                    prodImported
+                      ? 'bg-emerald-100 text-emerald-700 cursor-default'
+                      : 'bg-brand-600 text-white hover:bg-brand-700',
+                  )}
+                >
+                  {prodImported ? '✓ インポート済み' : 'インポートする'}
+                </button>
+                {prodImported && (
+                  <span className="text-xs text-emerald-600">生産計画に反映されました</span>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* ── 在庫数インポート ── */}
+          <section className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
+            <h2 className="text-sm font-bold text-slate-700 mb-1">在庫数 CSVインポート</h2>
+            <p className="text-xs text-slate-500 mb-4">
+              製品コードと在庫数の2列（または製品名を含む3列）のCSVを取り込みます。
+            </p>
+
+            {/* テンプレートDL */}
+            <div className="flex items-center gap-2 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <span className="text-xs text-slate-600 font-medium">テンプレートDL：</span>
+              <button
+                onClick={() =>
+                  downloadCSV(
+                    generateInventoryTemplate(products),
+                    `在庫数_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.csv`,
+                  )
+                }
+                className="text-xs px-3 py-1.5 bg-slate-700 text-white rounded hover:bg-slate-800 transition-colors"
+              >
+                ダウンロード
+              </button>
+            </div>
+
+            {/* ファイル選択 */}
+            <div className="flex items-center gap-3 mb-4">
+              <input
+                ref={invFileRef}
+                type="file"
+                accept=".csv,text/csv"
+                onChange={handleInvFile}
+                className="hidden"
+              />
+              <button
+                onClick={() => { invFileRef.current?.click(); setInvPreview(null); setInvImported(false); }}
+                className="text-sm px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                CSVファイルを選択
+              </button>
+              {invPreview && (
+                <span className="text-xs text-slate-500">
+                  {invPreview.rows.length}製品分を読み込みました
+                </span>
+              )}
+            </div>
+
+            {/* 警告 */}
+            {invPreview && invPreview.warnings.length > 0 && (
+              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 space-y-0.5">
+                {invPreview.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+              </div>
+            )}
+
+            {/* プレビューテーブル */}
+            {invPreview && invPreview.rows.length > 0 && (
+              <div className="overflow-x-auto mb-4">
+                <table className="text-xs border-collapse w-full max-w-lg">
+                  <thead>
+                    <tr className="bg-slate-50">
+                      <th className="px-3 py-2 text-left font-semibold text-slate-500 border-r border-slate-200">製品コード</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-500">製品名</th>
+                      <th className="px-3 py-2 text-right font-semibold text-slate-500">在庫数（個）</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invPreview.rows.map((row) => (
+                      <tr key={row.code} className={clsx('border-t border-slate-100', !row.found && 'bg-amber-50')}>
+                        <td className="px-3 py-1.5 font-mono text-slate-500 border-r border-slate-200">{row.code}</td>
+                        <td className="px-3 py-1.5 text-slate-700">{row.name}</td>
+                        <td className="px-3 py-1.5 text-right font-bold text-slate-800">{row.qty.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {invPreview && (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleInvImport}
+                  disabled={invImported}
+                  className={clsx(
+                    'px-4 py-2 text-sm rounded-lg transition-colors',
+                    invImported
+                      ? 'bg-emerald-100 text-emerald-700 cursor-default'
+                      : 'bg-brand-600 text-white hover:bg-brand-700',
+                  )}
+                >
+                  {invImported ? '✓ インポート済み' : 'インポートする'}
+                </button>
+                {invImported && (
+                  <span className="text-xs text-emerald-600">全体在庫数に反映されました</span>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* フォーマット説明 */}
+          <section className="bg-slate-50 rounded-lg border border-slate-200 p-4 text-xs text-slate-600">
+            <h3 className="font-semibold mb-2">CSVフォーマット仕様</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <div className="font-medium mb-1">生産計画CSV</div>
+                <pre className="bg-white border border-slate-200 rounded p-2 text-[10px] overflow-x-auto">{`製品コード,製品名,2024-04-01,2024-04-02,...
+1064521424,PH-5BN (A色),100,0,...
+1064521024,PH-5BN (B色),200,150,...`}</pre>
+                <p className="mt-1 text-slate-500">製品名列は省略可。日付は YYYY-MM-DD または M/D 形式。</p>
+              </div>
+              <div>
+                <div className="font-medium mb-1">在庫数CSV</div>
+                <pre className="bg-white border border-slate-200 rounded p-2 text-[10px] overflow-x-auto">{`製品コード,製品名,在庫数
+1064521424,PH-5BN (A色),500
+1064521024,PH-5BN (B色),300`}</pre>
+                <p className="mt-1 text-slate-500">製品名列は省略可（2列の場合は 製品コード,在庫数）。</p>
+              </div>
+            </div>
+          </section>
         </div>
       )}
 

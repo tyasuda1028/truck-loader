@@ -43,6 +43,9 @@ export type ProductionPlan = Record<string, number>;
 /** productCode → warehouseCode → 配分比率(%) */
 export type DistributionRatios = Record<string, Record<string, number>>;
 
+/** productCode → 日付(YYYY-MM-DD) → 日別生産数（個） */
+export type DailyProductionPlan = Record<string, Record<string, number>>;
+
 /** productCode → 全体在庫数（個） */
 export type InventoryStock = Record<string, number>;
 

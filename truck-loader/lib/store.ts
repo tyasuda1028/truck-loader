@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Product, Warehouse, TruckType, PalletType, ProductionPlan, DistributionRatios, InventoryStock, LocationStock } from './types';
+import type { Product, Warehouse, TruckType, PalletType, ProductionPlan, DailyProductionPlan, DistributionRatios, InventoryStock, LocationStock } from './types';
 import {
   DEFAULT_PRODUCTS,
   DEFAULT_WAREHOUSES,
@@ -18,6 +18,7 @@ interface AppState {
   truckTypes: TruckType[];
   palletTypes: PalletType[];
   productionPlan: ProductionPlan;
+  dailyProductionPlan: DailyProductionPlan;
   distributionRatios: DistributionRatios;
   inventoryStock: InventoryStock;
   locationStock: LocationStock;
@@ -27,6 +28,8 @@ interface AppState {
   setRatio: (productCode: string, warehouseCode: string, ratio: number) => void;
   setInventoryStock: (productCode: string, qty: number) => void;
   setLocationStock: (productCode: string, warehouseCode: string, qty: number) => void;
+  importProductionPlan: (dailyPlan: DailyProductionPlan, plan: ProductionPlan) => void;
+  importInventoryStockBulk: (stock: InventoryStock) => void;
   addProduct: (product: Product) => void;
   updateProduct: (product: Product) => void;
   removeProduct: (productCode: string) => void;
@@ -45,6 +48,7 @@ const defaultState = {
   truckTypes: DEFAULT_TRUCK_TYPES,
   palletTypes: DEFAULT_PALLET_TYPES,
   productionPlan: DEFAULT_PRODUCTION_PLAN,
+  dailyProductionPlan: {} as DailyProductionPlan,
   distributionRatios: DEFAULT_DISTRIBUTION_RATIOS,
   inventoryStock: DEFAULT_INVENTORY_STOCK,
   locationStock: DEFAULT_LOCATION_STOCK,
@@ -86,6 +90,15 @@ export const useAppStore = create<AppState>()(
             },
           },
         })),
+
+      importProductionPlan: (dailyPlan, plan) =>
+        set(() => ({
+          dailyProductionPlan: dailyPlan,
+          productionPlan: plan,
+        })),
+
+      importInventoryStockBulk: (stock) =>
+        set(() => ({ inventoryStock: stock })),
 
       addProduct: (product) =>
         set((s) => ({ products: [...s.products, product] })),
