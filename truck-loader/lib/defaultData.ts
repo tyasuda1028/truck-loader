@@ -1,4 +1,4 @@
-import type { Product, Warehouse, TruckType, ProductionPlan, DistributionRatios } from './types';
+import type { Product, Warehouse, TruckType, ProductionPlan, DistributionRatios, InventoryStock, LocationStock } from './types';
 
 export const DEFAULT_PRODUCTS: Product[] = [
   { code: '1064521424', name: 'PH-5BN (A色)',     capacityPerPallet: 40, palletType: 'P03', color: '#4A90D9' },
@@ -46,6 +46,21 @@ export const DEFAULT_PRODUCTION_PLAN: ProductionPlan = {
   '1053859000': 1280,
   '1060017944': 1000,
 };
+
+// 全体在庫数（個）
+export const DEFAULT_INVENTORY_STOCK: InventoryStock = {
+  '1064521424': 0,
+  '1064521024': 0,
+  '1064522024': 0,
+  '1064522424': 0,
+  '1064410024': 0,
+  '1064410424': 0,
+  '1053859000': 0,
+  '1060017944': 0,
+};
+
+// 拠点別現在庫（個）
+export const DEFAULT_LOCATION_STOCK: LocationStock = {};
 
 // 配分比率（%）— 製品コード → 拠点コード → 比率
 export const DEFAULT_DISTRIBUTION_RATIOS: DistributionRatios = {

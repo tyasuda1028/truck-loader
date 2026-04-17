@@ -1,12 +1,14 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Product, Warehouse, TruckType, ProductionPlan, DistributionRatios } from './types';
+import type { Product, Warehouse, TruckType, ProductionPlan, DistributionRatios, InventoryStock, LocationStock } from './types';
 import {
   DEFAULT_PRODUCTS,
   DEFAULT_WAREHOUSES,
   DEFAULT_TRUCK_TYPES,
   DEFAULT_PRODUCTION_PLAN,
   DEFAULT_DISTRIBUTION_RATIOS,
+  DEFAULT_INVENTORY_STOCK,
+  DEFAULT_LOCATION_STOCK,
 } from './defaultData';
 
 interface AppState {
@@ -15,10 +17,14 @@ interface AppState {
   truckTypes: TruckType[];
   productionPlan: ProductionPlan;
   distributionRatios: DistributionRatios;
+  inventoryStock: InventoryStock;
+  locationStock: LocationStock;
 
   // actions
   setProductionQty: (productCode: string, qty: number) => void;
   setRatio: (productCode: string, warehouseCode: string, ratio: number) => void;
+  setInventoryStock: (productCode: string, qty: number) => void;
+  setLocationStock: (productCode: string, warehouseCode: string, qty: number) => void;
   addProduct: (product: Product) => void;
   updateProduct: (product: Product) => void;
   removeProduct: (productCode: string) => void;
@@ -34,6 +40,8 @@ const defaultState = {
   truckTypes: DEFAULT_TRUCK_TYPES,
   productionPlan: DEFAULT_PRODUCTION_PLAN,
   distributionRatios: DEFAULT_DISTRIBUTION_RATIOS,
+  inventoryStock: DEFAULT_INVENTORY_STOCK,
+  locationStock: DEFAULT_LOCATION_STOCK,
 };
 
 export const useAppStore = create<AppState>()(
@@ -53,6 +61,22 @@ export const useAppStore = create<AppState>()(
             [productCode]: {
               ...s.distributionRatios[productCode],
               [warehouseCode]: ratio,
+            },
+          },
+        })),
+
+      setInventoryStock: (productCode, qty) =>
+        set((s) => ({
+          inventoryStock: { ...s.inventoryStock, [productCode]: qty },
+        })),
+
+      setLocationStock: (productCode, warehouseCode, qty) =>
+        set((s) => ({
+          locationStock: {
+            ...s.locationStock,
+            [productCode]: {
+              ...s.locationStock[productCode],
+              [warehouseCode]: qty,
             },
           },
         })),

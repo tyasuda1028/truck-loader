@@ -34,6 +34,12 @@ export type ProductionPlan = Record<string, number>;
 /** productCode → warehouseCode → 配分比率(%) */
 export type DistributionRatios = Record<string, Record<string, number>>;
 
+/** productCode → 全体在庫数（個） */
+export type InventoryStock = Record<string, number>;
+
+/** productCode → warehouseCode → 現在庫数（個） */
+export type LocationStock = Record<string, Record<string, number>>;
+
 // ─── 計算結果型 ──────────────────────────────────────────────────────
 
 export interface PalletItem {

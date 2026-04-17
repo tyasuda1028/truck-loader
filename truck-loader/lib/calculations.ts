@@ -1,6 +1,7 @@
 import type {
   Product, Warehouse, TruckType,
   ProductionPlan, DistributionRatios,
+  InventoryStock, LocationStock,
   PalletItem, TruckLoad, WarehousePlan,
 } from './types';
 
@@ -8,23 +9,71 @@ import type {
 const ceilDiv = (a: number, b: number) => (b > 0 ? Math.ceil(a / b) : 0);
 
 /**
- * 1拠点分の積載計画を計算する
+ * 在庫不足に基づいて各拠点への送り数を計算する
+ * 全体在庫 × 配分比率 = 必要在庫 → 不足数 = max(0, 必要 - 現在庫)
+ * 生産数を不足比率で按分して送り数を決定する
+ */
+export function calcSendQty(
+  products: Product[],
+  warehouses: Warehouse[],
+  productionPlan: ProductionPlan,
+  ratios: DistributionRatios,
+  inventoryStock: InventoryStock,
+  locationStock: LocationStock,
+): Record<string, Record<string, number>> {
+  const sendQty: Record<string, Record<string, number>> = {};
+
+  for (const p of products) {
+    const totalInventory = inventoryStock[p.code] ?? 0;
+    const production = productionPlan[p.code] ?? 0;
+    sendQty[p.code] = {};
+
+    // 各拠点の不足数を計算
+    const shortages: Record<string, number> = {};
+    let totalShortage = 0;
+
+    for (const wh of warehouses) {
+      const ratio = ratios[p.code]?.[wh.code] ?? 0;
+      const required = Math.round(totalInventory * ratio / 100);
+      const currentStock = locationStock[p.code]?.[wh.code] ?? 0;
+      const shortage = Math.max(0, required - currentStock);
+      shortages[wh.code] = shortage;
+      totalShortage += shortage;
+    }
+
+    // 生産数を不足比率で按分
+    for (const wh of warehouses) {
+      const shortage = shortages[wh.code] ?? 0;
+      if (totalShortage === 0 || production === 0) {
+        sendQty[p.code][wh.code] = 0;
+      } else if (totalShortage <= production) {
+        // 生産数が不足を全て賄える場合：不足数をそのまま送る
+        sendQty[p.code][wh.code] = shortage;
+      } else {
+        // 生産数が不足に満たない場合：比率で按分
+        sendQty[p.code][wh.code] = Math.round(production * shortage / totalShortage);
+      }
+    }
+  }
+
+  return sendQty;
+}
+
+/**
+ * 1拠点分の積載計画を計算する（送り数を外部から受け取る）
  */
 export function calcWarehousePlan(
   warehouseCode: string,
   products: Product[],
   truckType: TruckType,
-  productionPlan: ProductionPlan,
-  ratios: DistributionRatios,
+  sendQty: Record<string, Record<string, number>>,
 ): WarehousePlan {
   const maxPal = truckType.maxPallets;
 
   // 製品ごとに送り数 → パレット数を計算
   const items: (PalletItem & { originalPallets: number; remaining: number })[] = [];
   for (const p of products) {
-    const weeklyQty = productionPlan[p.code] ?? 0;
-    const ratio = ratios[p.code]?.[warehouseCode] ?? 0;
-    const qty = Math.round(weeklyQty * ratio / 100);
+    const qty = sendQty[p.code]?.[warehouseCode] ?? 0;
     if (qty <= 0) continue;
     const pallets = ceilDiv(qty, p.capacityPerPallet);
     items.push({
@@ -102,16 +151,21 @@ export function calcAllPlans(
   truckTypes: TruckType[],
   productionPlan: ProductionPlan,
   ratios: DistributionRatios,
+  inventoryStock: InventoryStock,
+  locationStock: LocationStock,
 ): Record<string, WarehousePlan> {
   const truckMap = Object.fromEntries(truckTypes.map(t => [t.code, t]));
-  const result: Record<string, WarehousePlan> = {};
 
+  // 在庫不足に基づく送り数を計算
+  const sendQty = calcSendQty(
+    products, warehouses, productionPlan, ratios, inventoryStock, locationStock,
+  );
+
+  const result: Record<string, WarehousePlan> = {};
   for (const wh of warehouses) {
     const truck = truckMap[wh.truckType];
     if (!truck) continue;
-    result[wh.code] = calcWarehousePlan(
-      wh.code, products, truck, productionPlan, ratios,
-    );
+    result[wh.code] = calcWarehousePlan(wh.code, products, truck, sendQty);
   }
   return result;
 }

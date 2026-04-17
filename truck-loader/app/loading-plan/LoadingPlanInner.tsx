@@ -9,7 +9,7 @@ import { LoadingTable } from '@/components/LoadingTable';
 import clsx from 'clsx';
 
 export default function LoadingPlanInner() {
-  const { products, warehouses, truckTypes, productionPlan, distributionRatios } = useAppStore();
+  const { products, warehouses, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock } = useAppStore();
   const searchParams = useSearchParams();
 
   const productColors = Object.fromEntries(products.map((p) => [p.code, p.color]));
@@ -17,8 +17,8 @@ export default function LoadingPlanInner() {
   const truckMap      = Object.fromEntries(truckTypes.map((t) => [t.code, t]));
 
   const plans = useMemo(
-    () => calcAllPlans(warehouses, products, truckTypes, productionPlan, distributionRatios),
-    [warehouses, products, truckTypes, productionPlan, distributionRatios],
+    () => calcAllPlans(warehouses, products, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock),
+    [warehouses, products, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock],
   );
 
   const activeWarehouses = warehouses.filter((wh) => (plans[wh.code]?.trucks.length ?? 0) > 0);

@@ -7,11 +7,11 @@ import { calcAllPlans, fillRate } from '@/lib/calculations';
 import clsx from 'clsx';
 
 export default function DashboardPage() {
-  const { products, warehouses, truckTypes, productionPlan, distributionRatios } = useAppStore();
+  const { products, warehouses, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock } = useAppStore();
 
   const plans = useMemo(
-    () => calcAllPlans(warehouses, products, truckTypes, productionPlan, distributionRatios),
-    [warehouses, products, truckTypes, productionPlan, distributionRatios],
+    () => calcAllPlans(warehouses, products, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock),
+    [warehouses, products, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock],
   );
 
   const truckMap = Object.fromEntries(truckTypes.map((t) => [t.code, t]));
