@@ -16,7 +16,7 @@ type Tab = 'production' | 'inventory' | 'location' | 'ratio' | 'csv';
 
 export default function ProductionPage() {
   const {
-    products, warehouses, truckTypes,
+    factories, products, warehouses, truckTypes,
     productionPlan, distributionRatios,
     inventoryStock, locationStock,
     setProductionQty, setRatio,
@@ -130,53 +130,117 @@ export default function ProductionPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 text-slate-500 text-xs">
-                <th className="px-4 py-2.5 text-left font-semibold w-8">#</th>
+                <th className="px-4 py-2.5 text-left font-semibold">工場</th>
+                <th className="px-4 py-2.5 text-left font-semibold">製品コード</th>
                 <th className="px-4 py-2.5 text-left font-semibold">製品名</th>
-                <th className="px-4 py-2.5 text-left font-semibold">パレット型</th>
-                <th className="px-4 py-2.5 text-right font-semibold">個/枚</th>
-                <th className="px-4 py-2.5 text-right font-semibold w-40">週間生産数（個）</th>
-                <th className="px-4 py-2.5 text-right font-semibold">総パレット数</th>
+                <th className="px-4 py-2.5 text-right font-semibold w-44">週間生産数（個）</th>
+                <th className="px-4 py-2.5 text-right font-semibold">週パレット数</th>
               </tr>
             </thead>
             <tbody>
-              {products.map((p, i) => {
-                const qty = productionPlan[p.code] ?? 0;
-                const pals = qty > 0 ? Math.ceil(qty / p.capacityPerPallet) : 0;
+              {factories.map((factory) => {
+                const factoryProducts = products.filter(
+                  (p) => (p.factoryCode ?? 'F001') === factory.code,
+                );
+                if (factoryProducts.length === 0) return null;
+
+                const subtotalQty = factoryProducts.reduce(
+                  (s, p) => s + (productionPlan[p.code] ?? 0), 0,
+                );
+                const subtotalPals = factoryProducts.reduce((s, p) => {
+                  const qty = productionPlan[p.code] ?? 0;
+                  return s + (qty > 0 ? Math.ceil(qty / p.capacityPerPallet) : 0);
+                }, 0);
+
                 return (
-                  <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
-                    <td className="px-4 py-2 text-slate-400 text-xs">{i + 1}</td>
-                    <td className="px-4 py-2">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="w-3 h-3 rounded-sm border border-black/10 shrink-0"
-                          style={{ background: p.color }}
-                        />
-                        <span className="font-medium">{p.name}</span>
-                        <span className="text-xs text-slate-400 font-mono">{p.code}</span>
-                      </div>
+                  <>
+                    {/* 工場ヘッダ行 */}
+                    <tr key={`hdr-${factory.code}`} className="bg-indigo-50 border-t-2 border-indigo-100">
+                      <td colSpan={5} className="px-4 py-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">
+                            {factory.code}
+                          </span>
+                          <span className="text-sm font-semibold text-indigo-800">{factory.name}</span>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* 製品行 */}
+                    {factoryProducts.map((p) => {
+                      const qty = productionPlan[p.code] ?? 0;
+                      const pals = qty > 0 ? Math.ceil(qty / p.capacityPerPallet) : 0;
+                      return (
+                        <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
+                          <td className="px-4 py-2 text-slate-400 text-xs">
+                            {/* 工場列は空（ヘッダで表示済み） */}
+                          </td>
+                          <td className="px-4 py-2">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="w-3 h-3 rounded-sm border border-black/10 shrink-0"
+                                style={{ background: p.color }}
+                              />
+                              <span className="font-mono text-xs text-slate-600">{p.code}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2 font-medium text-slate-700">{p.name}</td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="number"
+                              min={0}
+                              value={qty === 0 ? '' : qty}
+                              onChange={(e) =>
+                                setProductionQty(p.code, parseInt(e.target.value, 10) || 0)
+                              }
+                              placeholder="0"
+                              className="w-full text-right border border-slate-200 rounded px-2 py-1
+                                         text-sm focus:outline-none focus:border-brand-500 focus:ring-1
+                                         focus:ring-brand-500 bg-white"
+                            />
+                          </td>
+                          <td className="px-4 py-2 text-right font-medium text-slate-700">
+                            {pals > 0 ? `${pals}枚` : <span className="text-slate-300">—</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {/* 工場小計行 */}
+                    <tr key={`sub-${factory.code}`} className="border-t border-indigo-100 bg-indigo-50/60">
+                      <td colSpan={3} className="px-4 py-1.5 text-xs text-indigo-500 font-semibold">
+                        {factory.name} 小計
+                      </td>
+                      <td className="px-4 py-1.5 text-right text-xs font-bold text-indigo-600">
+                        {subtotalQty > 0 ? `${subtotalQty.toLocaleString()}個` : '—'}
+                      </td>
+                      <td className="px-4 py-1.5 text-right text-xs font-bold text-indigo-500">
+                        {subtotalPals > 0 ? `${subtotalPals}枚` : '—'}
+                      </td>
+                    </tr>
+                  </>
+                );
+              })}
+
+              {/* 総合計行 */}
+              {(() => {
+                const totalQty = products.reduce((s, p) => s + (productionPlan[p.code] ?? 0), 0);
+                const totalPals = products.reduce((s, p) => {
+                  const qty = productionPlan[p.code] ?? 0;
+                  return s + (qty > 0 ? Math.ceil(qty / p.capacityPerPallet) : 0);
+                }, 0);
+                return (
+                  <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold">
+                    <td colSpan={3} className="px-4 py-2 text-slate-600">総合計</td>
+                    <td className="px-4 py-2 text-right text-brand-600">
+                      {totalQty > 0 ? `${totalQty.toLocaleString()}個` : '—'}
                     </td>
-                    <td className="px-4 py-2 text-slate-500">{p.palletType}</td>
-                    <td className="px-4 py-2 text-right text-slate-500">{p.capacityPerPallet}</td>
-                    <td className="px-4 py-2">
-                      <input
-                        type="number"
-                        min={0}
-                        value={qty === 0 ? '' : qty}
-                        onChange={(e) =>
-                          setProductionQty(p.code, parseInt(e.target.value, 10) || 0)
-                        }
-                        placeholder="0"
-                        className="w-full text-right border border-slate-200 rounded px-2 py-1
-                                   text-sm focus:outline-none focus:border-brand-500 focus:ring-1
-                                   focus:ring-brand-500 bg-white"
-                      />
-                    </td>
-                    <td className="px-4 py-2 text-right font-medium text-slate-700">
-                      {pals > 0 ? `${pals}枚` : '—'}
+                    <td className="px-4 py-2 text-right text-slate-500">
+                      {totalPals > 0 ? `${totalPals}枚` : '—'}
                     </td>
                   </tr>
                 );
-              })}
+              })()}
             </tbody>
           </table>
         </div>
