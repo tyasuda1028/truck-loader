@@ -1,11 +1,17 @@
 // ─── マスタ型定義 ────────────────────────────────────────────────────
 
+export interface Factory {
+  code: string;
+  name: string;
+}
+
 export interface Product {
   code: string;
   name: string;
   capacityPerPallet: number; // 個/枚
   palletType: string;        // P01, P02, P03
   color: string;             // hex カラー
+  factoryCode?: string;      // 出荷工場コード（省略時は F001）
 }
 
 export interface Warehouse {
@@ -52,6 +58,9 @@ export type InventoryStock = Record<string, number>;
 /** productCode → warehouseCode → 現在庫数（個） */
 export type LocationStock = Record<string, Record<string, number>>;
 
+// Weekly shipping schedule: factoryCode → warehouseCode → [Mon,Tue,Wed,Thu,Fri,Sat,Sun] booleans
+export type WeeklyShippingSchedule = Record<string, Record<string, boolean[]>>;
+
 // ─── 計算結果型 ──────────────────────────────────────────────────────
 
 export interface PalletItem {
@@ -73,4 +82,10 @@ export interface WarehousePlan {
   trucks: TruckLoad[];
   totalPallets: number;
   totalQty: number;
+}
+
+// Per-day warehouse plan (extends WarehousePlan)
+export interface DayWarehousePlan extends WarehousePlan {
+  factoryCode: string;
+  dayOfWeek: number; // 0=月, 1=火, ..., 6=日; -1 = unscheduled (whole week)
 }

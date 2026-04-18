@@ -7,7 +7,10 @@ import { calcAllPlans, fillRate } from '@/lib/calculations';
 import clsx from 'clsx';
 
 export default function DashboardPage() {
-  const { products, warehouses, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock } = useAppStore();
+  const {
+    factories, products, warehouses, truckTypes,
+    productionPlan, distributionRatios, inventoryStock, locationStock,
+  } = useAppStore();
 
   const plans = useMemo(
     () => calcAllPlans(warehouses, products, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock),
@@ -15,6 +18,7 @@ export default function DashboardPage() {
   );
 
   const truckMap = Object.fromEntries(truckTypes.map((t) => [t.code, t]));
+  const factoryMap = Object.fromEntries(factories.map((f) => [f.code, f]));
 
   // サマリー集計
   const activePlans = Object.values(plans).filter((p) => p.trucks.length > 0);
@@ -63,6 +67,7 @@ export default function DashboardPage() {
             <thead>
               <tr className="bg-slate-50 text-slate-500 text-xs">
                 <th className="px-4 py-2 text-left font-semibold">製品名</th>
+                <th className="px-4 py-2 text-left font-semibold">工場</th>
                 <th className="px-4 py-2 text-right font-semibold">週間生産数</th>
                 <th className="px-4 py-2 text-right font-semibold">換算パレット</th>
               </tr>
@@ -71,6 +76,8 @@ export default function DashboardPage() {
               {products.map((p) => {
                 const qty = productionPlan[p.code] ?? 0;
                 const pals = qty > 0 ? Math.ceil(qty / p.capacityPerPallet) : 0;
+                const factoryCode = p.factoryCode ?? 'F001';
+                const factory = factoryMap[factoryCode];
                 return (
                   <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
                     <td className="px-4 py-2">
@@ -82,6 +89,11 @@ export default function DashboardPage() {
                         {p.name}
                       </div>
                     </td>
+                    <td className="px-4 py-2">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
+                        {factory?.name ?? factoryCode}
+                      </span>
+                    </td>
                     <td className="px-4 py-2 text-right font-medium">
                       {qty.toLocaleString()}個
                     </td>
@@ -91,6 +103,7 @@ export default function DashboardPage() {
               })}
               <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold">
                 <td className="px-4 py-2 text-slate-600">合計</td>
+                <td className="px-4 py-2"></td>
                 <td className="px-4 py-2 text-right text-brand-600">
                   {totalProductQty.toLocaleString()}個
                 </td>

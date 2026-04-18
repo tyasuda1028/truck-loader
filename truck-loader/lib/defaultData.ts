@@ -1,14 +1,19 @@
-import type { Product, Warehouse, TruckType, PalletType, ProductionPlan, DistributionRatios, InventoryStock, LocationStock } from './types';
+import type { Factory, Product, Warehouse, TruckType, PalletType, ProductionPlan, DistributionRatios, InventoryStock, LocationStock, WeeklyShippingSchedule } from './types';
+
+export const DEFAULT_FACTORIES: Factory[] = [
+  { code: 'F001', name: '本社工場' },
+  { code: 'F002', name: '西日本工場' },
+];
 
 export const DEFAULT_PRODUCTS: Product[] = [
-  { code: '1064521424', name: 'PH-5BN (A色)',     capacityPerPallet: 40, palletType: 'P03', color: '#4A90D9' },
-  { code: '1064521024', name: 'PH-5BN (B色)',     capacityPerPallet: 40, palletType: 'P03', color: '#2ECC71' },
-  { code: '1064522024', name: 'PH-5BNK (A色)',    capacityPerPallet: 40, palletType: 'P03', color: '#E67E22' },
-  { code: '1064522424', name: 'PH-5BNK (B色)',    capacityPerPallet: 40, palletType: 'P03', color: '#9B59B6' },
-  { code: '1064410024', name: 'PH-2015AW (A色)',  capacityPerPallet: 44, palletType: 'P01', color: '#E74C3C' },
-  { code: '1064410424', name: 'PH-2015AW (B色)',  capacityPerPallet: 44, palletType: 'P01', color: '#1ABC9C' },
-  { code: '1053859000', name: 'HCFA-8 450L',      capacityPerPallet: 64, palletType: 'P02', color: '#F39C12' },
-  { code: '1060017944', name: 'PH-E32EDVL',       capacityPerPallet: 20, palletType: 'P03', color: '#C0392B' },
+  { code: '1064521424', name: 'PH-5BN (A色)',     capacityPerPallet: 40, palletType: 'P03', color: '#4A90D9', factoryCode: 'F001' },
+  { code: '1064521024', name: 'PH-5BN (B色)',     capacityPerPallet: 40, palletType: 'P03', color: '#2ECC71', factoryCode: 'F001' },
+  { code: '1064522024', name: 'PH-5BNK (A色)',    capacityPerPallet: 40, palletType: 'P03', color: '#E67E22', factoryCode: 'F001' },
+  { code: '1064522424', name: 'PH-5BNK (B色)',    capacityPerPallet: 40, palletType: 'P03', color: '#9B59B6', factoryCode: 'F001' },
+  { code: '1064410024', name: 'PH-2015AW (A色)',  capacityPerPallet: 44, palletType: 'P01', color: '#E74C3C', factoryCode: 'F001' },
+  { code: '1064410424', name: 'PH-2015AW (B色)',  capacityPerPallet: 44, palletType: 'P01', color: '#1ABC9C', factoryCode: 'F001' },
+  { code: '1053859000', name: 'HCFA-8 450L',      capacityPerPallet: 64, palletType: 'P02', color: '#F39C12', factoryCode: 'F002' },
+  { code: '1060017944', name: 'PH-E32EDVL',       capacityPerPallet: 20, palletType: 'P03', color: '#C0392B', factoryCode: 'F002' },
 ];
 
 export const DEFAULT_PALLET_TYPES: PalletType[] = [
@@ -79,3 +84,5 @@ export const DEFAULT_DISTRIBUTION_RATIOS: DistributionRatios = {
   '1053859000': { W002: 0,  W0B4: 18, W0F1: 2,  W0LR: 24, W0Z1: 0, W0Z2: 0, W015: 9,  W054: 42, W055: 0, W091: 0, W098: 0, W0KB: 0, W0LW: 5  },
   '1060017944': { W002: 0,  W0B4: 0,  W0F1: 0,  W0LR: 0,  W0Z1: 0, W0Z2: 0, W015: 100,W054: 0,  W055: 0, W091: 0, W098: 0, W0KB: 0, W0LW: 0  },
 };
+
+export const DEFAULT_SHIPPING_SCHEDULE: WeeklyShippingSchedule = {};

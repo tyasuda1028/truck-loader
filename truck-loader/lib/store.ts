@@ -1,7 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Product, Warehouse, TruckType, PalletType, ProductionPlan, DailyProductionPlan, DistributionRatios, InventoryStock, LocationStock } from './types';
+import type {
+  Factory, Product, Warehouse, TruckType, PalletType,
+  ProductionPlan, DailyProductionPlan, DistributionRatios,
+  InventoryStock, LocationStock, WeeklyShippingSchedule,
+} from './types';
 import {
+  DEFAULT_FACTORIES,
   DEFAULT_PRODUCTS,
   DEFAULT_WAREHOUSES,
   DEFAULT_TRUCK_TYPES,
@@ -10,9 +15,11 @@ import {
   DEFAULT_DISTRIBUTION_RATIOS,
   DEFAULT_INVENTORY_STOCK,
   DEFAULT_LOCATION_STOCK,
+  DEFAULT_SHIPPING_SCHEDULE,
 } from './defaultData';
 
 interface AppState {
+  factories: Factory[];
   products: Product[];
   warehouses: Warehouse[];
   truckTypes: TruckType[];
@@ -22,8 +29,13 @@ interface AppState {
   distributionRatios: DistributionRatios;
   inventoryStock: InventoryStock;
   locationStock: LocationStock;
+  weeklyShippingSchedule: WeeklyShippingSchedule;
 
   // actions
+  addFactory: (f: Factory) => void;
+  updateFactory: (f: Factory) => void;
+  removeFactory: (code: string) => void;
+  setShippingDay: (factoryCode: string, warehouseCode: string, dayIndex: number, active: boolean) => void;
   setProductionQty: (productCode: string, qty: number) => void;
   setRatio: (productCode: string, warehouseCode: string, ratio: number) => void;
   setInventoryStock: (productCode: string, qty: number) => void;
@@ -44,6 +56,7 @@ interface AppState {
 }
 
 const defaultState = {
+  factories: DEFAULT_FACTORIES,
   products: DEFAULT_PRODUCTS,
   warehouses: DEFAULT_WAREHOUSES,
   truckTypes: DEFAULT_TRUCK_TYPES,
@@ -53,12 +66,44 @@ const defaultState = {
   distributionRatios: DEFAULT_DISTRIBUTION_RATIOS,
   inventoryStock: DEFAULT_INVENTORY_STOCK,
   locationStock: DEFAULT_LOCATION_STOCK,
+  weeklyShippingSchedule: DEFAULT_SHIPPING_SCHEDULE,
 };
 
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
       ...defaultState,
+
+      addFactory: (f) =>
+        set((s) => ({ factories: [...s.factories, f] })),
+
+      updateFactory: (f) =>
+        set((s) => ({
+          factories: s.factories.map((x) => (x.code === f.code ? f : x)),
+        })),
+
+      removeFactory: (code) =>
+        set((s) => ({
+          factories: s.factories.filter((x) => x.code !== code),
+        })),
+
+      setShippingDay: (factoryCode, warehouseCode, dayIndex, active) =>
+        set((s) => {
+          const schedule = s.weeklyShippingSchedule;
+          const factorySchedule = schedule[factoryCode] ?? {};
+          const days = factorySchedule[warehouseCode] ?? [false, false, false, false, false, false, false];
+          const newDays = [...days] as boolean[];
+          newDays[dayIndex] = active;
+          return {
+            weeklyShippingSchedule: {
+              ...schedule,
+              [factoryCode]: {
+                ...factorySchedule,
+                [warehouseCode]: newDays,
+              },
+            },
+          };
+        }),
 
       setProductionQty: (productCode, qty) =>
         set((s) => ({

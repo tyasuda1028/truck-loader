@@ -1,8 +1,9 @@
 import type {
-  Product, Warehouse, TruckType,
+  Factory, Product, Warehouse, TruckType,
   ProductionPlan, DistributionRatios,
   InventoryStock, LocationStock,
   PalletItem, TruckLoad, WarehousePlan,
+  WeeklyShippingSchedule, DayWarehousePlan,
 } from './types';
 
 /** 切り上げ除算 */
@@ -167,6 +168,93 @@ export function calcAllPlans(
     if (!truck) continue;
     result[wh.code] = calcWarehousePlan(wh.code, products, truck, sendQty);
   }
+  return result;
+}
+
+/**
+ * 工場・曜日別の積載計画を計算する
+ * factoryCode → DayWarehousePlan[] のマップを返す
+ */
+export function calcWeeklyPlans(
+  warehouses: Warehouse[],
+  products: Product[],
+  truckTypes: TruckType[],
+  factories: Factory[],
+  productionPlan: ProductionPlan,
+  ratios: DistributionRatios,
+  inventoryStock: InventoryStock,
+  locationStock: LocationStock,
+  schedule: WeeklyShippingSchedule,
+): Record<string, DayWarehousePlan[]> {
+  const truckMap = Object.fromEntries(truckTypes.map(t => [t.code, t]));
+  const result: Record<string, DayWarehousePlan[]> = {};
+
+  for (const factory of factories) {
+    const factoryProducts = products.filter(
+      (p) => (p.factoryCode ?? 'F001') === factory.code,
+    );
+
+    if (factoryProducts.length === 0) {
+      result[factory.code] = [];
+      continue;
+    }
+
+    // 週間送り数を計算（工場の製品のみ）
+    const weeklySendQty = calcSendQty(
+      factoryProducts,
+      warehouses,
+      productionPlan,
+      ratios,
+      inventoryStock,
+      locationStock,
+    );
+
+    const dayPlans: DayWarehousePlan[] = [];
+
+    for (const wh of warehouses) {
+      const truck = truckMap[wh.truckType];
+      if (!truck) continue;
+
+      // スケジュール上のアクティブ日を取得
+      const dayFlags = schedule[factory.code]?.[wh.code]; // boolean[7] or undefined
+      const activeDays: number[] = [];
+      if (dayFlags) {
+        for (let i = 0; i < 7; i++) {
+          if (dayFlags[i]) activeDays.push(i);
+        }
+      }
+
+      if (activeDays.length === 0) {
+        // スケジュールなし → 週全体として1プランを作る
+        const plan = calcWarehousePlan(wh.code, factoryProducts, truck, weeklySendQty);
+        if (plan.trucks.length === 0) continue;
+        dayPlans.push({ ...plan, factoryCode: factory.code, dayOfWeek: -1 });
+      } else {
+        // 曜日ごとに送り数を均等分割して計算
+        const numDays = activeDays.length;
+
+        for (const dayIdx of activeDays) {
+          // 各製品・各拠点の送り数を days で均等分割（余りは最初の曜日に加算）
+          const daySendQty: Record<string, Record<string, number>> = {};
+          for (const p of factoryProducts) {
+            daySendQty[p.code] = {};
+            const weeklyQty = weeklySendQty[p.code]?.[wh.code] ?? 0;
+            const base = Math.floor(weeklyQty / numDays);
+            const remainder = weeklyQty % numDays;
+            // 最初のアクティブ日（activeDays[0]）に余りを加算
+            const extra = dayIdx === activeDays[0] ? remainder : 0;
+            daySendQty[p.code][wh.code] = base + extra;
+          }
+          const plan = calcWarehousePlan(wh.code, factoryProducts, truck, daySendQty);
+          if (plan.trucks.length === 0) continue;
+          dayPlans.push({ ...plan, factoryCode: factory.code, dayOfWeek: dayIdx });
+        }
+      }
+    }
+
+    result[factory.code] = dayPlans;
+  }
+
   return result;
 }
 

@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { useAppStore } from '@/lib/store';
-import type { Product, Warehouse, PalletType } from '@/lib/types';
+import type { Factory, Product, Warehouse, PalletType } from '@/lib/types';
 import { parseProductsCSV, generateProductsTemplate, downloadCSV } from '@/lib/csv';
 import clsx from 'clsx';
 
@@ -12,11 +12,12 @@ const PRESET_COLORS = [
   '#3498DB','#27AE60','#D35400','#8E44AD',
 ];
 
-type Tab = 'products' | 'warehouses' | 'pallets';
+type Tab = 'products' | 'warehouses' | 'pallets' | 'factories';
 
 export default function SettingsPage() {
   const {
-    products, warehouses, truckTypes, palletTypes,
+    factories, products, warehouses, truckTypes, palletTypes,
+    addFactory, updateFactory, removeFactory,
     addProduct, updateProduct, removeProduct,
     addWarehouse, updateWarehouse, removeWarehouse,
     addPalletType, updatePalletType, removePalletType,
@@ -25,6 +26,7 @@ export default function SettingsPage() {
   } = useAppStore();
 
   const [tab, setTab] = useState<Tab>('products');
+  const [editingFactory, setEditingFactory] = useState<Factory | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null);
   const [editingPallet, setEditingPallet] = useState<PalletType | null>(null);
@@ -38,7 +40,11 @@ export default function SettingsPage() {
   // 製品の新規追加用空テンプレート
   const newProduct = (): Product => ({
     code: '', name: '', capacityPerPallet: 40, palletType: 'P03', color: PRESET_COLORS[0],
+    factoryCode: factories[0]?.code ?? 'F001',
   });
+
+  // 工場の新規追加用空テンプレート
+  const newFactory = (): Factory => ({ code: '', name: '' });
 
   // 拠点の新規追加用空テンプレート
   const newWarehouse = (): Warehouse => ({
@@ -49,6 +55,14 @@ export default function SettingsPage() {
   const newPalletType = (): PalletType => ({
     code: '', name: '', widthMM: 1100, depthMM: 1100, heightMM: 144, maxWeightKg: 1000,
   });
+
+  const handleSaveFactory = () => {
+    if (!editingFactory || !editingFactory.code.trim() || !editingFactory.name.trim()) return;
+    const exists = factories.some((f) => f.code === editingFactory.code);
+    if (exists) updateFactory(editingFactory);
+    else addFactory(editingFactory);
+    setEditingFactory(null);
+  };
 
   const handleSaveProduct = () => {
     if (!editingProduct || !editingProduct.code.trim() || !editingProduct.name.trim()) return;
@@ -140,6 +154,7 @@ export default function SettingsPage() {
           { key: 'products',   label: '📦 製品マスタ' },
           { key: 'warehouses', label: '🏭 拠点マスタ' },
           { key: 'pallets',    label: '🪵 パレット型' },
+          { key: 'factories',  label: '🏭 工場マスタ' },
         ] as { key: Tab; label: string }[]).map(({ key, label }) => (
           <button
             key={key}
@@ -155,6 +170,93 @@ export default function SettingsPage() {
           </button>
         ))}
       </div>
+
+      {/* ── 工場マスタ ── */}
+      {tab === 'factories' && (
+        <div>
+          <div className="flex justify-end mb-3">
+            <button
+              onClick={() => setEditingFactory(newFactory())}
+              className="text-sm px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
+            >
+              + 工場を追加
+            </button>
+          </div>
+
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 text-xs text-slate-500">
+                  <th className="px-4 py-2.5 text-left font-semibold">工場コード</th>
+                  <th className="px-4 py-2.5 text-left font-semibold">工場名</th>
+                  <th className="px-4 py-2.5 text-left font-semibold">製品数</th>
+                  <th className="px-4 py-2.5 text-right font-semibold">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {factories.map((f) => {
+                  const productCount = products.filter(
+                    (p) => (p.factoryCode ?? 'F001') === f.code,
+                  ).length;
+                  return (
+                    <tr key={f.code} className="border-t border-slate-100 hover:bg-slate-50">
+                      <td className="px-4 py-2">
+                        <span className="font-mono text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">
+                          {f.code}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 font-medium">{f.name}</td>
+                      <td className="px-4 py-2 text-slate-500 text-xs">
+                        {productCount > 0 ? (
+                          <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
+                            {productCount}製品
+                          </span>
+                        ) : (
+                          <span className="text-slate-300">未割り当て</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <button
+                          onClick={() => setEditingFactory({ ...f })}
+                          className="text-xs text-brand-600 hover:underline mr-3"
+                        >
+                          編集
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (productCount > 0) {
+                              alert(`「${f.name}」には ${productCount} 製品が割り当てられているため削除できません。`);
+                              return;
+                            }
+                            if (confirm(`「${f.name}」を削除しますか？`)) removeFactory(f.code);
+                          }}
+                          className="text-xs text-red-400 hover:underline"
+                        >
+                          削除
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="text-xs text-slate-400 mt-3">
+            ※ 工場は出荷スケジュールと積載計画の工場別表示に使用されます。製品が割り当てられている工場は削除できません。
+          </p>
+
+          {editingFactory && (
+            <FactoryModal
+              factory={editingFactory}
+              onChange={setEditingFactory}
+              onSave={handleSaveFactory}
+              onCancel={() => setEditingFactory(null)}
+              isNew={!factories.some((f) => f.code === editingFactory.code)}
+            />
+          )}
+        </div>
+      )}
 
       {/* ── 製品マスタ ── */}
       {tab === 'products' && (
@@ -303,40 +405,49 @@ export default function SettingsPage() {
                   <th className="px-4 py-2.5 text-left font-semibold">製品名</th>
                   <th className="px-4 py-2.5 text-right font-semibold">個/枚</th>
                   <th className="px-4 py-2.5 text-left font-semibold">パレット型</th>
+                  <th className="px-4 py-2.5 text-left font-semibold">工場</th>
                   <th className="px-4 py-2.5 text-right font-semibold">操作</th>
                 </tr>
               </thead>
               <tbody>
-                {products.map((p) => (
-                  <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
-                    <td className="px-4 py-2">
-                      <span
-                        className="w-5 h-5 rounded border border-black/10 block"
-                        style={{ background: p.color }}
-                      />
-                    </td>
-                    <td className="px-4 py-2 font-mono text-xs text-slate-500">{p.code}</td>
-                    <td className="px-4 py-2 font-medium">{p.name}</td>
-                    <td className="px-4 py-2 text-right">{p.capacityPerPallet}</td>
-                    <td className="px-4 py-2 text-slate-500">{p.palletType}</td>
-                    <td className="px-4 py-2 text-right">
-                      <button
-                        onClick={() => setEditingProduct({ ...p })}
-                        className="text-xs text-brand-600 hover:underline mr-3"
-                      >
-                        編集
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (confirm(`「${p.name}」を削除しますか？`)) removeProduct(p.code);
-                        }}
-                        className="text-xs text-red-400 hover:underline"
-                      >
-                        削除
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {products.map((p) => {
+                  const factory = factories.find((f) => f.code === (p.factoryCode ?? 'F001'));
+                  return (
+                    <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
+                      <td className="px-4 py-2">
+                        <span
+                          className="w-5 h-5 rounded border border-black/10 block"
+                          style={{ background: p.color }}
+                        />
+                      </td>
+                      <td className="px-4 py-2 font-mono text-xs text-slate-500">{p.code}</td>
+                      <td className="px-4 py-2 font-medium">{p.name}</td>
+                      <td className="px-4 py-2 text-right">{p.capacityPerPallet}</td>
+                      <td className="px-4 py-2 text-slate-500">{p.palletType}</td>
+                      <td className="px-4 py-2">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
+                          {factory?.name ?? p.factoryCode ?? 'F001'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-right">
+                        <button
+                          onClick={() => setEditingProduct({ ...p })}
+                          className="text-xs text-brand-600 hover:underline mr-3"
+                        >
+                          編集
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`「${p.name}」を削除しますか？`)) removeProduct(p.code);
+                          }}
+                          className="text-xs text-red-400 hover:underline"
+                        >
+                          削除
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -345,6 +456,7 @@ export default function SettingsPage() {
           {editingProduct && (
             <ProductModal
               product={editingProduct}
+              factories={factories}
               onChange={setEditingProduct}
               onSave={handleSaveProduct}
               onCancel={() => setEditingProduct(null)}
@@ -527,11 +639,58 @@ export default function SettingsPage() {
   );
 }
 
+// ─── 工場モーダル ──────────────────────────────────────────────────────
+function FactoryModal({
+  factory, onChange, onSave, onCancel, isNew,
+}: {
+  factory: Factory;
+  onChange: (f: Factory) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  isNew: boolean;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl p-6 shadow-xl w-full max-w-md mx-4">
+        <h3 className="font-bold text-slate-800 mb-4">{isNew ? '工場を追加' : '工場を編集'}</h3>
+        <div className="flex flex-col gap-3">
+          <Field label="工場コード（例: F001）">
+            <input
+              className={INPUT_CLASS}
+              value={factory.code}
+              onChange={(e) => onChange({ ...factory, code: e.target.value.toUpperCase() })}
+              disabled={!isNew}
+              placeholder="例: F001"
+            />
+          </Field>
+          <Field label="工場名">
+            <input
+              className={INPUT_CLASS}
+              value={factory.name}
+              onChange={(e) => onChange({ ...factory, name: e.target.value })}
+              placeholder="例: 東京本社工場"
+            />
+          </Field>
+        </div>
+        <div className="flex gap-2 justify-end mt-6">
+          <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
+            キャンセル
+          </button>
+          <button onClick={onSave} className="px-4 py-2 text-sm text-white bg-brand-600 rounded-lg hover:bg-brand-700">
+            保存
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── 製品モーダル ──────────────────────────────────────────────────────
 function ProductModal({
-  product, onChange, onSave, onCancel, isNew,
+  product, factories, onChange, onSave, onCancel, isNew,
 }: {
   product: Product;
+  factories: Factory[];
   onChange: (p: Product) => void;
   onSave: () => void;
   onCancel: () => void;
@@ -574,6 +733,17 @@ function ProductModal({
               onChange={(e) => onChange({ ...product, palletType: e.target.value })}
             >
               {['P01', 'P02', 'P03'].map((t) => <option key={t}>{t}</option>)}
+            </select>
+          </Field>
+          <Field label="出荷工場">
+            <select
+              className={INPUT_CLASS}
+              value={product.factoryCode ?? 'F001'}
+              onChange={(e) => onChange({ ...product, factoryCode: e.target.value })}
+            >
+              {factories.map((f) => (
+                <option key={f.code} value={f.code}>{f.code} - {f.name}</option>
+              ))}
             </select>
           </Field>
           <Field label="表示カラー">
