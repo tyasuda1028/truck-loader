@@ -66,44 +66,86 @@ export default function DashboardPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 text-slate-500 text-xs">
+                <th className="px-4 py-2 text-left font-semibold">製品コード</th>
                 <th className="px-4 py-2 text-left font-semibold">製品名</th>
-                <th className="px-4 py-2 text-left font-semibold">工場</th>
                 <th className="px-4 py-2 text-right font-semibold">週間生産数</th>
                 <th className="px-4 py-2 text-right font-semibold">換算パレット</th>
               </tr>
             </thead>
             <tbody>
-              {products.map((p) => {
-                const qty = productionPlan[p.code] ?? 0;
-                const pals = qty > 0 ? Math.ceil(qty / p.capacityPerPallet) : 0;
-                const factoryCode = p.factoryCode ?? 'F001';
-                const factory = factoryMap[factoryCode];
+              {factories.map((factory) => {
+                const factoryProducts = products.filter(
+                  (p) => (p.factoryCode ?? 'F001') === factory.code,
+                );
+                if (factoryProducts.length === 0) return null;
+
+                const factoryQty = factoryProducts.reduce(
+                  (s, p) => s + (productionPlan[p.code] ?? 0), 0,
+                );
+                const factoryPals = factoryProducts.reduce((s, p) => {
+                  const qty = productionPlan[p.code] ?? 0;
+                  return s + (qty > 0 ? Math.ceil(qty / p.capacityPerPallet) : 0);
+                }, 0);
+
                 return (
-                  <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
-                    <td className="px-4 py-2">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="w-2.5 h-2.5 rounded-sm border border-black/10"
-                          style={{ background: p.color }}
-                        />
-                        {p.name}
-                      </div>
-                    </td>
-                    <td className="px-4 py-2">
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
-                        {factory?.name ?? factoryCode}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-right font-medium">
-                      {qty.toLocaleString()}個
-                    </td>
-                    <td className="px-4 py-2 text-right text-slate-500">{pals}枚</td>
-                  </tr>
+                  <>
+                    {/* 工場ヘッダ行 */}
+                    <tr key={`factory-${factory.code}`} className="bg-indigo-50 border-t-2 border-indigo-100">
+                      <td colSpan={4} className="px-4 py-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">
+                            {factory.code}
+                          </span>
+                          <span className="text-sm font-semibold text-indigo-800">{factory.name}</span>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* 工場の製品行 */}
+                    {factoryProducts.map((p) => {
+                      const qty = productionPlan[p.code] ?? 0;
+                      const pals = qty > 0 ? Math.ceil(qty / p.capacityPerPallet) : 0;
+                      return (
+                        <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
+                          <td className="px-4 py-2">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0"
+                                style={{ background: p.color }}
+                              />
+                              <span className="font-mono text-xs text-slate-500">{p.code}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2 font-medium text-slate-700">{p.name}</td>
+                          <td className="px-4 py-2 text-right font-medium">
+                            {qty > 0 ? `${qty.toLocaleString()}個` : <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className="px-4 py-2 text-right text-slate-500">
+                            {pals > 0 ? `${pals}枚` : <span className="text-slate-300">—</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {/* 工場小計行 */}
+                    <tr key={`subtotal-${factory.code}`} className="border-t border-indigo-100 bg-indigo-50/60">
+                      <td className="px-4 py-1.5 text-xs text-indigo-500 font-semibold" colSpan={2}>
+                        {factory.name} 小計
+                      </td>
+                      <td className="px-4 py-1.5 text-right text-xs font-bold text-indigo-600">
+                        {factoryQty.toLocaleString()}個
+                      </td>
+                      <td className="px-4 py-1.5 text-right text-xs font-bold text-indigo-500">
+                        {factoryPals}枚
+                      </td>
+                    </tr>
+                  </>
                 );
               })}
-              <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold">
-                <td className="px-4 py-2 text-slate-600">合計</td>
-                <td className="px-4 py-2"></td>
+
+              {/* 合計行 */}
+              <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold">
+                <td className="px-4 py-2 text-slate-600" colSpan={2}>総合計</td>
                 <td className="px-4 py-2 text-right text-brand-600">
                   {totalProductQty.toLocaleString()}個
                 </td>
