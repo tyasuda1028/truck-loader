@@ -6,8 +6,10 @@ import { calcAllPlans, calcSendQty } from '@/lib/calculations';
 import {
   parseProductionCSV,
   parseInventoryCSV,
+  parseLocationStockCSV,
   generateProductionTemplate,
   generateInventoryTemplate,
+  generateLocationStockTemplate,
   downloadCSV,
 } from '@/lib/csv';
 import clsx from 'clsx';
@@ -18,10 +20,10 @@ export default function ProductionPage() {
   const {
     factories, products, warehouses, truckTypes,
     productionPlan, distributionRatios,
-    inventoryStock, locationStock,
+    inventoryStock, locationStock, inTransitStock,
     setProductionQty, setRatio,
     setInventoryStock, setLocationStock,
-    importProductionPlan, importInventoryStockBulk,
+    importProductionPlan, importInventoryStockBulk, importLocationStockBulk,
   } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<Tab>('production');
@@ -29,22 +31,25 @@ export default function ProductionPage() {
   // CSV インポート用ステート
   const prodFileRef = useRef<HTMLInputElement>(null);
   const invFileRef  = useRef<HTMLInputElement>(null);
+  const locFileRef  = useRef<HTMLInputElement>(null);
   const now = new Date();
   const [templateYear,  setTemplateYear]  = useState(now.getFullYear());
   const [templateMonth, setTemplateMonth] = useState(now.getMonth() + 1);
   const [prodPreview, setProdPreview] = useState<ReturnType<typeof parseProductionCSV> | null>(null);
   const [invPreview,  setInvPreview]  = useState<ReturnType<typeof parseInventoryCSV>  | null>(null);
+  const [locPreview,  setLocPreview]  = useState<ReturnType<typeof parseLocationStockCSV> | null>(null);
   const [prodImported, setProdImported] = useState(false);
   const [invImported,  setInvImported]  = useState(false);
+  const [locImported,  setLocImported]  = useState(false);
 
   const sendQty = useMemo(
-    () => calcSendQty(products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock),
-    [products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock],
+    () => calcSendQty(products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock),
+    [products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock],
   );
 
   const plans = useMemo(
-    () => calcAllPlans(warehouses, products, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock),
-    [warehouses, products, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock],
+    () => calcAllPlans(warehouses, products, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock),
+    [warehouses, products, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock],
   );
 
   // 出荷がある拠点のみ表示
@@ -89,6 +94,24 @@ export default function ProductionPage() {
     if (!invPreview) return;
     importInventoryStockBulk(invPreview.inventoryStock);
     setInvImported(true);
+  };
+
+  const handleLocFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      setLocPreview(parseLocationStockCSV(text, products, warehouses));
+      setLocImported(false);
+    };
+    reader.readAsText(file, 'utf-8');
+  };
+
+  const handleLocImport = () => {
+    if (!locPreview) return;
+    importLocationStockBulk(locPreview.locationStock);
+    setLocImported(true);
   };
 
   const tabs: { key: Tab; label: string }[] = [
@@ -660,6 +683,119 @@ export default function ProductionPage() {
             )}
           </section>
 
+          {/* ── 拠点別在庫インポート ── */}
+          <section className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
+            <h2 className="text-sm font-bold text-slate-700 mb-1">拠点別在庫 CSVインポート</h2>
+            <p className="text-xs text-slate-500 mb-4">
+              製品×拠点のマトリクス形式（ワイド形式）のCSVを取り込みます。取り込んだ値で全拠点の在庫数を一括更新します。
+            </p>
+
+            {/* テンプレートDL */}
+            <div className="flex items-center gap-2 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <span className="text-xs text-slate-600 font-medium">テンプレートDL：</span>
+              <button
+                onClick={() =>
+                  downloadCSV(
+                    generateLocationStockTemplate(products, warehouses, locationStock),
+                    `拠点別在庫_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.csv`,
+                  )
+                }
+                className="text-xs px-3 py-1.5 bg-slate-700 text-white rounded hover:bg-slate-800 transition-colors"
+              >
+                ダウンロード（現在値入り）
+              </button>
+            </div>
+
+            {/* ファイル選択 */}
+            <div className="flex items-center gap-3 mb-4">
+              <input
+                ref={locFileRef}
+                type="file"
+                accept=".csv,text/csv"
+                onChange={handleLocFile}
+                className="hidden"
+              />
+              <button
+                onClick={() => { locFileRef.current?.click(); setLocPreview(null); setLocImported(false); }}
+                className="text-sm px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                CSVファイルを選択
+              </button>
+              {locPreview && (
+                <span className="text-xs text-slate-500">
+                  {locPreview.rows.length}製品 × {Object.keys(locPreview.rows[0]?.whQty ?? {}).length}拠点分を読み込みました
+                </span>
+              )}
+            </div>
+
+            {/* 警告 */}
+            {locPreview && locPreview.warnings.length > 0 && (
+              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 space-y-0.5">
+                {locPreview.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+              </div>
+            )}
+
+            {/* プレビューテーブル */}
+            {locPreview && locPreview.rows.length > 0 && (() => {
+              const whCodes = Object.keys(locPreview.rows[0]?.whQty ?? {});
+              return (
+                <div className="overflow-x-auto mb-4">
+                  <table className="text-xs border-collapse w-full">
+                    <thead>
+                      <tr className="bg-slate-50">
+                        <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 border-r border-slate-200 min-w-[160px]">製品</th>
+                        {whCodes.map((wc) => (
+                          <th key={wc} className="px-2 py-2 text-center font-semibold text-slate-400 min-w-[64px]">
+                            <div>{wc}</div>
+                            <div className="text-[10px] text-slate-400">{warehouses.find(w => w.code === wc)?.name.slice(0, 4)}</div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {locPreview.rows.map((row) => (
+                        <tr key={row.code} className={clsx('border-t border-slate-100', !row.found && 'bg-amber-50')}>
+                          <td className="px-3 py-1.5 sticky left-0 bg-white border-r border-slate-200">
+                            <div className="font-medium text-slate-700">{row.name}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">{row.code}</div>
+                          </td>
+                          {whCodes.map((wc) => {
+                            const qty = row.whQty[wc] ?? 0;
+                            return (
+                              <td key={wc} className="px-2 py-1.5 text-center text-slate-600">
+                                {qty > 0 ? <span className="font-medium">{qty.toLocaleString()}</span> : <span className="text-slate-300">—</span>}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+
+            {locPreview && (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleLocImport}
+                  disabled={locImported}
+                  className={clsx(
+                    'px-4 py-2 text-sm rounded-lg transition-colors',
+                    locImported
+                      ? 'bg-emerald-100 text-emerald-700 cursor-default'
+                      : 'bg-brand-600 text-white hover:bg-brand-700',
+                  )}
+                >
+                  {locImported ? '✓ インポート済み' : 'インポートする'}
+                </button>
+                {locImported && (
+                  <span className="text-xs text-emerald-600">拠点別在庫数に反映されました</span>
+                )}
+              </div>
+            )}
+          </section>
+
           {/* フォーマット説明 */}
           <section className="bg-slate-50 rounded-lg border border-slate-200 p-4 text-xs text-slate-600">
             <h3 className="font-semibold mb-2">CSVフォーマット仕様</h3>
@@ -672,11 +808,11 @@ export default function ProductionPage() {
                 <p className="mt-1 text-slate-500">製品名列は省略可。日付は YYYY-MM-DD または M/D 形式。</p>
               </div>
               <div>
-                <div className="font-medium mb-1">在庫数CSV</div>
-                <pre className="bg-white border border-slate-200 rounded p-2 text-[10px] overflow-x-auto">{`製品コード,製品名,在庫数
-1064521424,PH-5BN (A色),500
-1064521024,PH-5BN (B色),300`}</pre>
-                <p className="mt-1 text-slate-500">製品名列は省略可（2列の場合は 製品コード,在庫数）。</p>
+                <div className="font-medium mb-1">拠点別在庫CSV</div>
+                <pre className="bg-white border border-slate-200 rounded p-2 text-[10px] overflow-x-auto">{`製品コード,製品名,W002,W0B4,...
+1064521424,PH-5BN (A色),0,100,...
+1064521024,PH-5BN (B色),50,200,...`}</pre>
+                <p className="mt-1 text-slate-500">製品名列は省略可。列ヘッダは拠点コード。</p>
               </div>
             </div>
           </section>

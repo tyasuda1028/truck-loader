@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useAppStore } from '@/lib/store';
-import { calcWeeklyPlans, fillRate } from '@/lib/calculations';
+import { calcWeeklyPlans, calcSendQty, fillRate } from '@/lib/calculations';
 import { TruckDiagram } from '@/components/TruckDiagram';
 import { LoadingTable } from '@/components/LoadingTable';
 import clsx from 'clsx';
@@ -13,13 +13,19 @@ export default function LoadingPlanInner() {
   const {
     factories, products, warehouses, truckTypes,
     productionPlan, distributionRatios, inventoryStock, locationStock,
-    weeklyShippingSchedule,
+    weeklyShippingSchedule, inTransitStock, confirmShipment,
   } = useAppStore();
 
   const productColors = Object.fromEntries(products.map((p) => [p.code, p.color]));
   const productNames  = Object.fromEntries(products.map((p) => [p.code, p.name]));
   const truckMap      = Object.fromEntries(truckTypes.map((t) => [t.code, t]));
   const warehouseMap  = Object.fromEntries(warehouses.map((w) => [w.code, w]));
+
+  // 全製品の週間送り数（出荷確定用）
+  const allSendQty = useMemo(
+    () => calcSendQty(products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock),
+    [products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock],
+  );
 
   // 工場別・日別計画
   const weeklyPlans = useMemo(
@@ -34,9 +40,18 @@ export default function LoadingPlanInner() {
         inventoryStock,
         locationStock,
         weeklyShippingSchedule,
+        inTransitStock,
       ),
-    [warehouses, products, truckTypes, factories, productionPlan, distributionRatios, inventoryStock, locationStock, weeklyShippingSchedule],
+    [warehouses, products, truckTypes, factories, productionPlan, distributionRatios, inventoryStock, locationStock, weeklyShippingSchedule, inTransitStock],
   );
+
+  const [confirmed, setConfirmed] = useState(false);
+
+  const handleConfirmShipment = () => {
+    confirmShipment(allSendQty);
+    setConfirmed(true);
+    setTimeout(() => setConfirmed(false), 4000);
+  };
 
   // 出荷計画のある工場のみ
   const activeFactories = factories.filter(
@@ -112,6 +127,24 @@ export default function LoadingPlanInner() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-56px)] overflow-hidden">
+
+      {/* ── 出荷確定バー ── */}
+      <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between shrink-0">
+        <p className="text-xs text-slate-500">
+          出荷が完了したら「出荷確定」を押すと、今週の送り数が<strong className="text-slate-700">輸送中数量</strong>として保存され、次回の計画に反映されます。
+        </p>
+        <button
+          onClick={handleConfirmShipment}
+          className={clsx(
+            'ml-4 shrink-0 px-4 py-1.5 text-sm font-semibold rounded-lg transition-all',
+            confirmed
+              ? 'bg-emerald-100 text-emerald-700 cursor-default'
+              : 'bg-brand-600 text-white hover:bg-brand-700 active:scale-95',
+          )}
+        >
+          {confirmed ? '✓ 出荷確定済み' : '🚚 出荷確定'}
+        </button>
+      </div>
 
       {/* ── 工場タブ ── */}
       {activeFactories.length > 0 && (

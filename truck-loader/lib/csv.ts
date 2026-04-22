@@ -1,4 +1,4 @@
-import type { Product, PalletType, ProductionPlan, InventoryStock, DailyProductionPlan } from './types';
+import type { Product, PalletType, Warehouse, ProductionPlan, InventoryStock, LocationStock, DailyProductionPlan } from './types';
 
 // ─── CSV パース共通 ───────────────────────────────────────────────────
 
@@ -299,6 +299,104 @@ export function generateProductsTemplate(products: Product[]): string {
 export function generateInventoryTemplate(products: Product[]): string {
   const header = ['製品コード', '製品名', '在庫数'].join(',');
   const rows = products.map((p) => [p.code, `"${p.name}"`, '0'].join(','));
+  return '\uFEFF' + [header, ...rows].join('\r\n');
+}
+
+// ─── 拠点別在庫 CSV ───────────────────────────────────────────────────
+
+/**
+ * 拠点別在庫 CSV を解析する（ワイド形式）。
+ *
+ * フォーマット（1行目ヘッダ）:
+ *   製品コード, 製品名, 拠点コード1, 拠点コード2, ...
+ *
+ * 拠点名列は省略可（2列目が拠点コードに一致しなければ製品名として扱う）
+ */
+export function parseLocationStockCSV(
+  text: string,
+  products: Product[],
+  warehouses: Warehouse[],
+): {
+  locationStock: LocationStock;
+  rows: { code: string; name: string; whQty: Record<string, number>; found: boolean }[];
+  warnings: string[];
+} {
+  const productMap = Object.fromEntries(products.map((p) => [p.code, p]));
+  const warehouseCodes = new Set(warehouses.map((w) => w.code));
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+
+  const warnings: string[] = [];
+  if (lines.length < 2) {
+    warnings.push('データが不足しています（ヘッダ行 + 1行以上のデータが必要です）');
+    return { locationStock: {}, rows: [], warnings };
+  }
+
+  const headers = parseCSVLine(lines[0]);
+
+  // 2列目が拠点コードかどうかで「製品名列あり」を判定
+  let whStartIdx = 1;
+  if (headers.length > 1 && !warehouseCodes.has(headers[1])) {
+    whStartIdx = 2; // 製品コード, 製品名, 拠点1, 拠点2...
+  }
+
+  // ヘッダから拠点コードを収集
+  const headerWarehouses: string[] = [];
+  for (let i = whStartIdx; i < headers.length; i++) {
+    const wc = headers[i]?.trim();
+    if (!wc) continue;
+    if (!warehouseCodes.has(wc)) {
+      warnings.push(`ヘッダ「${wc}」は拠点コードとして認識できませんでした（スキップ）`);
+    }
+    headerWarehouses.push(wc);
+  }
+
+  if (headerWarehouses.length === 0) {
+    warnings.push('拠点コード列が見つかりませんでした');
+    return { locationStock: {}, rows: [], warnings };
+  }
+
+  const locationStock: LocationStock = {};
+  const rows: { code: string; name: string; whQty: Record<string, number>; found: boolean }[] = [];
+
+  for (let r = 1; r < lines.length; r++) {
+    const cells = parseCSVLine(lines[r]);
+    const code = cells[0]?.trim();
+    if (!code) continue;
+
+    const found = !!productMap[code];
+    if (!found) {
+      warnings.push(`行${r + 1}: 製品コード「${code}」はマスタに存在しません（インポートはされます）`);
+    }
+
+    locationStock[code] = locationStock[code] ?? {};
+    const whQty: Record<string, number> = {};
+
+    for (let c = 0; c < headerWarehouses.length; c++) {
+      const wc = headerWarehouses[c];
+      const qty = parseInt(cells[whStartIdx + c] ?? '', 10) || 0;
+      locationStock[code][wc] = qty;
+      whQty[wc] = qty;
+    }
+
+    const name = whStartIdx === 2 ? (cells[1]?.trim() ?? '') : (productMap[code]?.name ?? code);
+    rows.push({ code, name, whQty, found });
+  }
+
+  return { locationStock, rows, warnings };
+}
+
+/** 拠点別在庫 CSV テンプレートを生成（製品 × 拠点のマトリクス） */
+export function generateLocationStockTemplate(
+  products: Product[],
+  warehouses: Warehouse[],
+  currentStock: LocationStock = {},
+): string {
+  const whCodes = warehouses.map((w) => w.code);
+  const header = ['製品コード', '製品名', ...whCodes].join(',');
+  const rows = products.map((p) => {
+    const qtys = whCodes.map((wc) => currentStock[p.code]?.[wc] ?? 0);
+    return [p.code, `"${p.name}"`, ...qtys].join(',');
+  });
   return '\uFEFF' + [header, ...rows].join('\r\n');
 }
 

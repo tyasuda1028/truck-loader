@@ -1,7 +1,7 @@
 import type {
   Factory, Product, Warehouse, TruckType,
   ProductionPlan, DistributionRatios,
-  InventoryStock, LocationStock,
+  InventoryStock, LocationStock, InTransitStock,
   PalletItem, TruckLoad, WarehousePlan,
   WeeklyShippingSchedule, DayWarehousePlan,
 } from './types';
@@ -11,7 +11,9 @@ const ceilDiv = (a: number, b: number) => (b > 0 ? Math.ceil(a / b) : 0);
 
 /**
  * 在庫不足に基づいて各拠点への送り数を計算する
- * 全体在庫 × 配分比率 = 必要在庫 → 不足数 = max(0, 必要 - 現在庫)
+ * 全体在庫 × 配分比率 = 必要在庫
+ * 有効在庫 = 拠点在庫 + 輸送中数量
+ * 不足数 = max(0, 必要 - 有効在庫)
  * 生産数を不足比率で按分して送り数を決定する
  */
 export function calcSendQty(
@@ -21,6 +23,7 @@ export function calcSendQty(
   ratios: DistributionRatios,
   inventoryStock: InventoryStock,
   locationStock: LocationStock,
+  inTransitStock: InTransitStock = {},
 ): Record<string, Record<string, number>> {
   const sendQty: Record<string, Record<string, number>> = {};
 
@@ -29,7 +32,7 @@ export function calcSendQty(
     const production = productionPlan[p.code] ?? 0;
     sendQty[p.code] = {};
 
-    // 各拠点の不足数を計算
+    // 各拠点の不足数を計算（拠点在庫 + 輸送中を有効在庫とする）
     const shortages: Record<string, number> = {};
     let totalShortage = 0;
 
@@ -37,7 +40,9 @@ export function calcSendQty(
       const ratio = ratios[p.code]?.[wh.code] ?? 0;
       const required = Math.round(totalInventory * ratio / 100);
       const currentStock = locationStock[p.code]?.[wh.code] ?? 0;
-      const shortage = Math.max(0, required - currentStock);
+      const inTransit = inTransitStock[p.code]?.[wh.code] ?? 0;
+      const effectiveStock = currentStock + inTransit;
+      const shortage = Math.max(0, required - effectiveStock);
       shortages[wh.code] = shortage;
       totalShortage += shortage;
     }
@@ -154,12 +159,13 @@ export function calcAllPlans(
   ratios: DistributionRatios,
   inventoryStock: InventoryStock,
   locationStock: LocationStock,
+  inTransitStock: InTransitStock = {},
 ): Record<string, WarehousePlan> {
   const truckMap = Object.fromEntries(truckTypes.map(t => [t.code, t]));
 
-  // 在庫不足に基づく送り数を計算
+  // 在庫不足に基づく送り数を計算（輸送中も考慮）
   const sendQty = calcSendQty(
-    products, warehouses, productionPlan, ratios, inventoryStock, locationStock,
+    products, warehouses, productionPlan, ratios, inventoryStock, locationStock, inTransitStock,
   );
 
   const result: Record<string, WarehousePlan> = {};
@@ -185,6 +191,7 @@ export function calcWeeklyPlans(
   inventoryStock: InventoryStock,
   locationStock: LocationStock,
   schedule: WeeklyShippingSchedule,
+  inTransitStock: InTransitStock = {},
 ): Record<string, DayWarehousePlan[]> {
   const truckMap = Object.fromEntries(truckTypes.map(t => [t.code, t]));
   const result: Record<string, DayWarehousePlan[]> = {};
@@ -199,7 +206,7 @@ export function calcWeeklyPlans(
       continue;
     }
 
-    // 週間送り数を計算（工場の製品のみ）
+    // 週間送り数を計算（工場の製品のみ、輸送中考慮）
     const weeklySendQty = calcSendQty(
       factoryProducts,
       warehouses,
@@ -207,6 +214,7 @@ export function calcWeeklyPlans(
       ratios,
       inventoryStock,
       locationStock,
+      inTransitStock,
     );
 
     const dayPlans: DayWarehousePlan[] = [];

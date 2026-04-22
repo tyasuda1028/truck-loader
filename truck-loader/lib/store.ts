@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type {
   Factory, Product, Warehouse, TruckType, PalletType,
   ProductionPlan, DailyProductionPlan, DistributionRatios,
-  InventoryStock, LocationStock, WeeklyShippingSchedule,
+  InventoryStock, LocationStock, WeeklyShippingSchedule, InTransitStock,
 } from './types';
 import {
   DEFAULT_FACTORIES,
@@ -36,6 +36,7 @@ interface AppState {
   inventoryStock: InventoryStock;
   locationStock: LocationStock;
   weeklyShippingSchedule: WeeklyShippingSchedule;
+  inTransitStock: InTransitStock;
 
   // ─── アクション ───────────────────────────────────────────
   loadFromSupabase: () => Promise<void>;
@@ -51,6 +52,8 @@ interface AppState {
   setLocationStock: (productCode: string, warehouseCode: string, qty: number) => void;
   importProductionPlan: (dailyPlan: DailyProductionPlan, plan: ProductionPlan) => void;
   importInventoryStockBulk: (stock: InventoryStock) => void;
+  importLocationStockBulk: (stock: LocationStock) => void;
+  confirmShipment: (sendQty: Record<string, Record<string, number>>) => void;
 
   addProduct: (product: Product) => void;
   updateProduct: (product: Product) => void;
@@ -81,6 +84,7 @@ const defaultState = {
   inventoryStock: DEFAULT_INVENTORY_STOCK,
   locationStock: DEFAULT_LOCATION_STOCK,
   weeklyShippingSchedule: DEFAULT_SHIPPING_SCHEDULE,
+  inTransitStock: {} as InTransitStock,
 };
 
 export const useAppStore = create<AppState>()((set, get) => ({
@@ -101,6 +105,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         inventoryStock,
         locationStock,
         weeklyShippingSchedule,
+        inTransitStock,
       ] = await Promise.all([
         db.loadFactories(),
         db.loadProducts(),
@@ -113,6 +118,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         db.loadInventoryStock(),
         db.loadLocationStock(),
         db.loadWeeklyShippingSchedule(),
+        db.loadInTransitStock(),
       ]);
 
       // テーブルが空なら初期データを投入
@@ -135,6 +141,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         inventoryStock: Object.keys(inventoryStock).length > 0 ? inventoryStock : DEFAULT_INVENTORY_STOCK,
         locationStock,
         weeklyShippingSchedule,
+        inTransitStock,
       });
     } catch (err) {
       console.error('[Supabase] loadFromSupabase error:', err);
@@ -211,6 +218,16 @@ export const useAppStore = create<AppState>()((set, get) => ({
   importInventoryStockBulk: (stock) => {
     set(() => ({ inventoryStock: stock }));
     db.replaceAllInventoryStock(stock).catch(console.error);
+  },
+
+  importLocationStockBulk: (stock) => {
+    set(() => ({ locationStock: stock }));
+    db.replaceAllLocationStock(stock).catch(console.error);
+  },
+
+  confirmShipment: (sendQty) => {
+    set(() => ({ inTransitStock: sendQty }));
+    db.replaceAllInTransitStock(sendQty).catch(console.error);
   },
 
   setLocationStock: (productCode, warehouseCode, qty) => {

@@ -6,7 +6,7 @@ import { supabase } from './supabase';
 import type {
   Factory, Product, Warehouse, TruckType, PalletType,
   ProductionPlan, DailyProductionPlan, DistributionRatios,
-  InventoryStock, LocationStock, WeeklyShippingSchedule,
+  InventoryStock, LocationStock, WeeklyShippingSchedule, InTransitStock,
 } from './types';
 
 // ─── Factories ────────────────────────────────────────────────────────────────
@@ -273,6 +273,57 @@ export async function upsertLocationStock(productCode: string, warehouseCode: st
     qty,
   });
   if (error) throw error;
+}
+
+export async function replaceAllLocationStock(stock: LocationStock) {
+  const { error: delErr } = await supabase
+    .from('location_stock')
+    .delete()
+    .neq('product_code', '___never___');
+  if (delErr) throw delErr;
+
+  const rows: { product_code: string; warehouse_code: string; qty: number }[] = [];
+  for (const [pc, whs] of Object.entries(stock)) {
+    for (const [wc, qty] of Object.entries(whs)) {
+      rows.push({ product_code: pc, warehouse_code: wc, qty });
+    }
+  }
+  if (rows.length > 0) {
+    const { error } = await supabase.from('location_stock').insert(rows);
+    if (error) throw error;
+  }
+}
+
+// ─── In-Transit Stock ────────────────────────────────────────────────────────
+
+export async function loadInTransitStock(): Promise<InTransitStock> {
+  const { data, error } = await supabase.from('in_transit_stock').select('*');
+  if (error) throw error;
+  const stock: InTransitStock = {};
+  for (const r of data ?? []) {
+    if (!stock[r.product_code]) stock[r.product_code] = {};
+    stock[r.product_code][r.warehouse_code] = r.qty;
+  }
+  return stock;
+}
+
+export async function replaceAllInTransitStock(stock: InTransitStock) {
+  const { error: delErr } = await supabase
+    .from('in_transit_stock')
+    .delete()
+    .neq('product_code', '___never___');
+  if (delErr) throw delErr;
+
+  const rows: { product_code: string; warehouse_code: string; qty: number }[] = [];
+  for (const [pc, whs] of Object.entries(stock)) {
+    for (const [wc, qty] of Object.entries(whs)) {
+      if (qty > 0) rows.push({ product_code: pc, warehouse_code: wc, qty });
+    }
+  }
+  if (rows.length > 0) {
+    const { error } = await supabase.from('in_transit_stock').insert(rows);
+    if (error) throw error;
+  }
 }
 
 // ─── Weekly Shipping Schedule ────────────────────────────────────────────────
