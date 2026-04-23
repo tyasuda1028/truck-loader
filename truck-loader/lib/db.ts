@@ -339,6 +339,15 @@ export async function loadPlannedSales(): Promise<PlannedSales> {
   return sales;
 }
 
+export async function upsertPlannedSales(productCode: string, warehouseCode: string, qty: number) {
+  const { error } = await supabase.from('planned_sales').upsert({
+    product_code: productCode,
+    warehouse_code: warehouseCode,
+    qty,
+  });
+  if (error) throw error;
+}
+
 export async function replaceAllPlannedSales(sales: PlannedSales) {
   const { error: delErr } = await supabase
     .from('planned_sales')

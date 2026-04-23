@@ -54,6 +54,7 @@ interface AppState {
   importProductionPlan: (dailyPlan: DailyProductionPlan, plan: ProductionPlan) => void;
   importInventoryStockBulk: (stock: InventoryStock) => void;
   importLocationStockBulk: (stock: LocationStock) => void;
+  setPlannedSales: (productCode: string, warehouseCode: string, qty: number) => void;
   importPlannedSalesBulk: (sales: PlannedSales) => void;
   confirmShipment: (sendQty: Record<string, Record<string, number>>) => void;
 
@@ -229,6 +230,16 @@ export const useAppStore = create<AppState>()((set, get) => ({
   importLocationStockBulk: (stock) => {
     set(() => ({ locationStock: stock }));
     db.replaceAllLocationStock(stock).catch(console.error);
+  },
+
+  setPlannedSales: (productCode, warehouseCode, qty) => {
+    set((s) => ({
+      plannedSales: {
+        ...s.plannedSales,
+        [productCode]: { ...s.plannedSales[productCode], [warehouseCode]: qty },
+      },
+    }));
+    db.upsertPlannedSales(productCode, warehouseCode, qty).catch(console.error);
   },
 
   importPlannedSalesBulk: (sales) => {
