@@ -1,4 +1,4 @@
-import type { Product, PalletType, Warehouse, ProductionPlan, InventoryStock, LocationStock, DailyProductionPlan, PlannedSales } from './types';
+import type { Product, PalletType, Warehouse, ProductionPlan, InventoryStock, LocationStock, DailyProductionPlan, PlannedSales, DistributionRatios } from './types';
 
 // ─── CSV パース共通 ───────────────────────────────────────────────────
 
@@ -489,6 +489,60 @@ export function generatePlannedSalesTemplate(
   const rows = products.map((p) => {
     const qtys = whCodes.map((wc) => currentSales[p.code]?.[wc] ?? 0);
     return [p.code, `"${p.name}"`, ...qtys].join(',');
+  });
+  return '\uFEFF' + [header, ...rows].join('\r\n');
+}
+
+/** 配分比率 CSV を解析（製品 × 拠点のマトリクス形式） */
+export function parseDistributionRatiosCSV(
+  text: string,
+  products: Product[],
+  warehouses: Warehouse[],
+): { ratios: DistributionRatios; rows: { code: string; name: string; found: boolean; whRatio: Record<string, number> }[]; warnings: string[] } {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(Boolean);
+  if (lines.length < 2) return { ratios: {}, rows: [], warnings: ['データが空です'] };
+
+  const headers = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, ''));
+  const whCodes = headers.slice(2);
+  const productMap = Object.fromEntries(products.map((p) => [p.code, p]));
+  const warehouseSet = new Set(warehouses.map((w) => w.code));
+
+  const warnings: string[] = [];
+  const rows: { code: string; name: string; found: boolean; whRatio: Record<string, number> }[] = [];
+  const ratios: DistributionRatios = {};
+
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
+    const code = cols[0];
+    if (!code) continue;
+    const found = !!productMap[code];
+    if (!found) warnings.push(`行${i + 1}: 製品コード "${code}" はマスタに存在しません`);
+
+    const whRatio: Record<string, number> = {};
+    whCodes.forEach((wc, idx) => {
+      if (!warehouseSet.has(wc)) return;
+      const val = parseInt(cols[idx + 2] ?? '0', 10);
+      whRatio[wc] = isNaN(val) ? 0 : val;
+    });
+
+    rows.push({ code, name: productMap[code]?.name ?? code, found, whRatio });
+    if (found) ratios[code] = whRatio;
+  }
+
+  return { ratios, rows, warnings };
+}
+
+/** 配分比率 CSV テンプレートを生成（製品 × 拠点のマトリクス） */
+export function generateDistributionRatiosTemplate(
+  products: Product[],
+  warehouses: Warehouse[],
+  currentRatios: DistributionRatios = {},
+): string {
+  const whCodes = warehouses.map((w) => w.code);
+  const header = ['製品コード', '製品名', ...whCodes].join(',');
+  const rows = products.map((p) => {
+    const ratioVals = whCodes.map((wc) => currentRatios[p.code]?.[wc] ?? 0);
+    return [p.code, `"${p.name}"`, ...ratioVals].join(',');
   });
   return '\uFEFF' + [header, ...rows].join('\r\n');
 }

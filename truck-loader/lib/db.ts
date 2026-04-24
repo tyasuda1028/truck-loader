@@ -222,6 +222,25 @@ export async function upsertDistributionRatio(productCode: string, warehouseCode
   if (error) throw error;
 }
 
+export async function replaceAllDistributionRatios(ratios: DistributionRatios) {
+  const { error: delErr } = await supabase
+    .from('distribution_ratios')
+    .delete()
+    .neq('product_code', '___never___');
+  if (delErr) throw delErr;
+
+  const rows: { product_code: string; warehouse_code: string; ratio: number }[] = [];
+  for (const [pc, whs] of Object.entries(ratios)) {
+    for (const [wc, ratio] of Object.entries(whs)) {
+      rows.push({ product_code: pc, warehouse_code: wc, ratio });
+    }
+  }
+  if (rows.length > 0) {
+    const { error } = await supabase.from('distribution_ratios').insert(rows);
+    if (error) throw error;
+  }
+}
+
 // ─── Inventory Stock ─────────────────────────────────────────────────────────
 
 export async function loadInventoryStock(): Promise<InventoryStock> {

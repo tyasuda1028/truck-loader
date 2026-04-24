@@ -7,9 +7,11 @@ import {
   parseProductionCSV,
   parseLocationStockCSV,
   parsePlannedSalesCSV,
+  parseDistributionRatiosCSV,
   generateProductionTemplate,
   generateLocationStockTemplate,
   generatePlannedSalesTemplate,
+  generateDistributionRatiosTemplate,
   downloadCSV,
 } from '@/lib/csv';
 import clsx from 'clsx';
@@ -22,7 +24,7 @@ export default function ProductionPage() {
     productionPlan, distributionRatios,
     locationStock, inTransitStock, plannedSales, inventoryStock,
     setProductionQty, setRatio, setLocationStock, setPlannedSales,
-    importProductionPlan, importLocationStockBulk, importPlannedSalesBulk,
+    importProductionPlan, importLocationStockBulk, importPlannedSalesBulk, importDistributionRatiosBulk,
   } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<Tab>('production');
@@ -44,6 +46,11 @@ export default function ProductionPage() {
   const salesFileRef = useRef<HTMLInputElement>(null);
   const [salesPreview,  setSalesPreview]  = useState<ReturnType<typeof parsePlannedSalesCSV> | null>(null);
   const [salesImported, setSalesImported] = useState(false);
+
+  // 配分比率 CSV
+  const ratioFileRef = useRef<HTMLInputElement>(null);
+  const [ratioPreview,  setRatioPreview]  = useState<ReturnType<typeof parseDistributionRatiosCSV> | null>(null);
+  const [ratioImported, setRatioImported] = useState(false);
 
   const sendQty = useMemo(
     () => calcSendQty(products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales),
@@ -78,6 +85,17 @@ export default function ProductionPage() {
     reader.onload = (ev) => {
       setLocPreview(parseLocationStockCSV(ev.target?.result as string, products, warehouses));
       setLocImported(false);
+    };
+    reader.readAsText(file, 'utf-8');
+  };
+
+  const handleRatioFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setRatioPreview(parseDistributionRatiosCSV(ev.target?.result as string, products, warehouses));
+      setRatioImported(false);
     };
     reader.readAsText(file, 'utf-8');
   };
@@ -680,10 +698,112 @@ export default function ProductionPage() {
 
       {/* ── タブ④：配分比率 ── */}
       {activeTab === 'ratio' && (
-        <div>
-          <p className="text-xs text-slate-500 mb-3 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+        <div className="flex flex-col gap-6">
+          <p className="text-xs text-slate-500 bg-amber-50 border border-amber-200 rounded px-3 py-2">
             💡 各製品の全体在庫を各拠点に何%配分するかを設定します。横計が100%になるよう設定してください。
           </p>
+
+          {/* CSV インポート */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
+            <h2 className="text-sm font-bold text-slate-700 mb-1">CSVインポート / ダウンロード</h2>
+            <p className="text-xs text-slate-500 mb-4">
+              製品×拠点のマトリクス形式（ワイド形式）で配分比率を一括管理できます。各セルに0〜100の整数を入力してください。
+            </p>
+            <div className="flex items-center gap-2 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <span className="text-xs text-slate-600 font-medium">テンプレートDL：</span>
+              <button
+                onClick={() => downloadCSV(
+                  generateDistributionRatiosTemplate(products, warehouses, distributionRatios),
+                  `配分比率_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.csv`,
+                )}
+                className="text-xs px-3 py-1.5 bg-slate-700 text-white rounded hover:bg-slate-800 transition-colors"
+              >
+                ダウンロード（現在値入り）
+              </button>
+            </div>
+            <div className="flex items-center gap-3 mb-4">
+              <input ref={ratioFileRef} type="file" accept=".csv,text/csv" onChange={handleRatioFile} className="hidden" />
+              <button
+                onClick={() => { ratioFileRef.current?.click(); setRatioPreview(null); setRatioImported(false); }}
+                className="text-sm px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                CSVファイルを選択
+              </button>
+              {ratioPreview && (
+                <span className="text-xs text-slate-500">
+                  {ratioPreview.rows.length}製品分を読み込みました
+                </span>
+              )}
+            </div>
+            {ratioPreview?.warnings && ratioPreview.warnings.length > 0 && (
+              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 space-y-0.5">
+                {ratioPreview.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+              </div>
+            )}
+            {ratioPreview && ratioPreview.rows.length > 0 && (() => {
+              const whCodes = Object.keys(ratioPreview.rows[0]?.whRatio ?? {});
+              return (
+                <div className="overflow-x-auto mb-4">
+                  <table className="text-xs border-collapse w-full">
+                    <thead>
+                      <tr className="bg-slate-50">
+                        <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 border-r border-slate-200 min-w-[160px]">製品</th>
+                        {whCodes.map((wc) => (
+                          <th key={wc} className="px-2 py-2 text-center font-semibold text-slate-400 min-w-[64px]">
+                            <div>{wc}</div>
+                            <div className="text-[10px] text-slate-400">{warehouses.find(w => w.code === wc)?.name.slice(0, 4)}</div>
+                          </th>
+                        ))}
+                        <th className="px-3 py-2 text-right font-semibold text-slate-500 min-w-[60px]">合計%</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ratioPreview.rows.map((row) => {
+                        const total = whCodes.reduce((s, wc) => s + (row.whRatio[wc] ?? 0), 0);
+                        return (
+                          <tr key={row.code} className={clsx('border-t border-slate-100', !row.found && 'bg-amber-50')}>
+                            <td className="px-3 py-1.5 sticky left-0 bg-white border-r border-slate-200">
+                              <div className="font-medium text-slate-700">{row.name}</div>
+                              <div className="text-[10px] text-slate-400 font-mono">{row.code}</div>
+                            </td>
+                            {whCodes.map((wc) => {
+                              const val = row.whRatio[wc] ?? 0;
+                              return (
+                                <td key={wc} className="px-2 py-1.5 text-center text-slate-600">
+                                  {val > 0 ? <span className="font-medium">{val}%</span> : <span className="text-slate-300">—</span>}
+                                </td>
+                              );
+                            })}
+                            <td className={clsx('px-3 py-1.5 text-right font-bold',
+                              total > 100 ? 'text-red-500' : total === 100 ? 'text-emerald-600' : 'text-amber-500'
+                            )}>
+                              {total}%
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+            {ratioPreview && (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => { importDistributionRatiosBulk(ratioPreview.ratios); setRatioImported(true); }}
+                  disabled={ratioImported}
+                  className={clsx(
+                    'px-4 py-2 text-sm rounded-lg transition-colors',
+                    ratioImported ? 'bg-emerald-100 text-emerald-700 cursor-default' : 'bg-brand-600 text-white hover:bg-brand-700',
+                  )}
+                >
+                  {ratioImported ? '✓ インポート済み' : 'インポートする'}
+                </button>
+                {ratioImported && <span className="text-xs text-emerald-600">配分比率に反映されました</span>}
+              </div>
+            )}
+          </div>
+
           <div className="overflow-x-auto">
             <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
               <table className="text-xs border-collapse w-full">
