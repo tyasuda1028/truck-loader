@@ -16,14 +16,14 @@ import {
 } from '@/lib/csv';
 import clsx from 'clsx';
 
-type Tab = 'production' | 'location' | 'sales' | 'ratio';
+type Tab = 'production' | 'location' | 'transit' | 'sales' | 'ratio';
 
 export default function ProductionPage() {
   const {
     factories, products, warehouses, truckTypes,
     productionPlan, distributionRatios,
     locationStock, inTransitStock, plannedSales, inventoryStock,
-    setProductionQty, setRatio, setLocationStock, setPlannedSales,
+    setProductionQty, setRatio, setLocationStock, setPlannedSales, setInTransitStock,
     importProductionPlan, importLocationStockBulk, importPlannedSalesBulk, importDistributionRatiosBulk,
   } = useAppStore();
 
@@ -114,6 +114,7 @@ export default function ProductionPage() {
   const tabs: { key: Tab; label: string }[] = [
     { key: 'production', label: '📋 週間生産数' },
     { key: 'location',   label: '🏭 拠点別現在庫' },
+    { key: 'transit',    label: '🚚 輸送中（前回決定分）' },
     { key: 'sales',      label: '🛒 予定出荷数' },
     { key: 'ratio',      label: '📊 配分比率' },
   ];
@@ -121,9 +122,9 @@ export default function ProductionPage() {
   return (
     <div className="max-w-screen-xl mx-auto px-4 py-6">
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-slate-800">生産計画入力</h1>
+        <h1 className="text-xl font-bold text-slate-800">配送計画入力</h1>
         <p className="text-sm text-slate-500 mt-0.5">
-          拠点別現在庫・予定出荷数・配分比率から不足数を算出し、生産数で補充する送り数を計算します
+          拠点別現在庫・輸送中数量・予定出荷数・配分比率から不足数を算出し、生産数で補充する送り数を計算します
         </p>
       </div>
 
@@ -541,6 +542,86 @@ export default function ProductionPage() {
             </div>
           </div>
 
+        </div>
+      )}
+
+      {/* ── タブ③：輸送中（前回決定分） ── */}
+      {activeTab === 'transit' && (
+        <div className="flex flex-col gap-6">
+          <p className="text-xs text-slate-500 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+            💡 前回の出荷確定で記録された輸送中数量です。各拠点に届いていない在庫として積載計画に反映されます。手動で修正できます。
+          </p>
+
+          {/* インライン編集マトリクス */}
+          <div className="overflow-x-auto">
+            <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
+              <table className="text-xs border-collapse w-full">
+                <thead>
+                  <tr className="bg-slate-50">
+                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
+                    {activeWarehouses.map((wh) => (
+                      <th key={wh.code} className="px-2 py-2.5 text-center font-semibold text-slate-500 min-w-[80px]">
+                        <div className="font-bold text-slate-400">{wh.code}</div>
+                        <div className="text-[10px] text-slate-500 leading-tight">{wh.name.slice(0, 5)}</div>
+                      </th>
+                    ))}
+                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500 min-w-[80px]">合計</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {products.map((p) => {
+                    const rowTotal = activeWarehouses.reduce((s, wh) => s + (inTransitStock[p.code]?.[wh.code] ?? 0), 0);
+                    return (
+                      <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
+                        <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
+                            <span className="font-medium text-slate-700">{p.name}</span>
+                          </div>
+                        </td>
+                        {activeWarehouses.map((wh) => {
+                          const ratio = distributionRatios[p.code]?.[wh.code] ?? 0;
+                          if (ratio === 0) return <td key={wh.code} className="px-1 py-1.5 text-center text-slate-300">—</td>;
+                          const qty = inTransitStock[p.code]?.[wh.code] ?? 0;
+                          return (
+                            <td key={wh.code} className="px-1 py-1.5 text-center">
+                              <input
+                                type="number" min={0}
+                                value={qty === 0 ? '' : qty}
+                                onChange={(e) => setInTransitStock(p.code, wh.code, parseInt(e.target.value, 10) || 0)}
+                                placeholder="0"
+                                className="w-16 text-center border border-slate-200 rounded px-1 py-0.5 text-xs
+                                           focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 bg-white"
+                              />
+                            </td>
+                          );
+                        })}
+                        <td className="px-3 py-1.5 text-right font-semibold text-amber-600">
+                          {rowTotal > 0 ? `${rowTotal.toLocaleString()}個` : <span className="text-slate-300">—</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold">
+                    <td className="px-3 py-2 sticky left-0 bg-slate-50 border-r border-slate-200 text-slate-600">合計</td>
+                    {activeWarehouses.map((wh) => {
+                      const total = products.reduce((s, p) => s + (inTransitStock[p.code]?.[wh.code] ?? 0), 0);
+                      return (
+                        <td key={wh.code} className="px-2 py-2 text-center text-amber-600">
+                          {total > 0 ? `${total.toLocaleString()}個` : '—'}
+                        </td>
+                      );
+                    })}
+                    <td className="px-3 py-2 text-right text-amber-600">
+                      {products.reduce((s, p) => s + activeWarehouses.reduce((ss, wh) => ss + (inTransitStock[p.code]?.[wh.code] ?? 0), 0), 0) > 0
+                        ? `${products.reduce((s, p) => s + activeWarehouses.reduce((ss, wh) => ss + (inTransitStock[p.code]?.[wh.code] ?? 0), 0), 0).toLocaleString()}個`
+                        : '—'}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 

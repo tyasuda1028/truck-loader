@@ -315,6 +315,22 @@ export async function replaceAllLocationStock(stock: LocationStock) {
 
 // ─── In-Transit Stock ────────────────────────────────────────────────────────
 
+export async function upsertInTransitStock(productCode: string, warehouseCode: string, qty: number) {
+  if (qty === 0) {
+    await supabase.from('in_transit_stock')
+      .delete()
+      .eq('product_code', productCode)
+      .eq('warehouse_code', warehouseCode);
+    return;
+  }
+  const { error } = await supabase.from('in_transit_stock').upsert({
+    product_code: productCode,
+    warehouse_code: warehouseCode,
+    qty,
+  });
+  if (error) throw error;
+}
+
 export async function loadInTransitStock(): Promise<InTransitStock> {
   const { data, error } = await supabase.from('in_transit_stock').select('*');
   if (error) throw error;
