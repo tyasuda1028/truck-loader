@@ -27,9 +27,11 @@ export default function ProductionPage() {
     locationStock, inTransitStock, plannedSales, inventoryStock,
     setProductionQty, setRatio, setLocationStock, setPlannedSales, setInTransitStock,
     importProductionPlan, importLocationStockBulk, importPlannedSalesBulk, importInTransitStockBulk, importDistributionRatiosBulk,
+    clearProductionPlan, clearLocationStock, clearPlannedSales, clearInTransitStock,
   } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<Tab>('production');
+  const [clearConfirm, setClearConfirm] = useState<Tab | null>(null);
   const now = new Date();
 
   // 生産計画 CSV
@@ -72,6 +74,16 @@ export default function ProductionPage() {
   const activeWarehouses = warehouses.filter((wh) =>
     products.some((p) => (distributionRatios[p.code]?.[wh.code] ?? 0) > 0),
   );
+
+  // ─── 一括クリア ──────────────────────────────────────────────────────
+  const handleClear = (tab: Tab) => {
+    if (clearConfirm !== tab) { setClearConfirm(tab); return; }
+    if (tab === 'production') clearProductionPlan();
+    if (tab === 'location')   clearLocationStock();
+    if (tab === 'transit')    clearInTransitStock();
+    if (tab === 'sales')      clearPlannedSales();
+    setClearConfirm(null);
+  };
 
   // ─── CSV ハンドラ ────────────────────────────────────────────────────
   const handleProdFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -147,11 +159,11 @@ export default function ProductionPage() {
       </div>
 
       {/* タブ */}
-      <div className="flex gap-1 mb-4 border-b border-slate-200">
+      <div className="flex items-end gap-1 mb-4 border-b border-slate-200">
         {tabs.map(({ key, label }) => (
           <button
             key={key}
-            onClick={() => setActiveTab(key)}
+            onClick={() => { setActiveTab(key); setClearConfirm(null); }}
             className={clsx(
               'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
               activeTab === key
@@ -162,6 +174,33 @@ export default function ProductionPage() {
             {label}
           </button>
         ))}
+        {/* 一括クリアボタン（ratioタブ以外） */}
+        {activeTab !== 'ratio' && (
+          <div className="ml-auto flex items-center gap-2 pb-1">
+            {clearConfirm === activeTab && (
+              <span className="text-xs text-red-600 font-medium">本当にクリアしますか？</span>
+            )}
+            <button
+              onClick={() => handleClear(activeTab)}
+              className={clsx(
+                'text-xs px-3 py-1.5 rounded border transition-colors',
+                clearConfirm === activeTab
+                  ? 'bg-red-600 text-white border-red-600 hover:bg-red-700'
+                  : 'border-slate-300 text-slate-500 hover:border-red-400 hover:text-red-500 hover:bg-red-50',
+              )}
+            >
+              {clearConfirm === activeTab ? '✓ クリア実行' : '🗑 一括クリア'}
+            </button>
+            {clearConfirm === activeTab && (
+              <button
+                onClick={() => setClearConfirm(null)}
+                className="text-xs px-2 py-1.5 rounded border border-slate-200 text-slate-400 hover:text-slate-600"
+              >
+                キャンセル
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── タブ①：週間生産数 ── */}

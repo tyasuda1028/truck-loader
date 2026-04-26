@@ -53,12 +53,16 @@ interface AppState {
   setInventoryStock: (productCode: string, qty: number) => void;
   setLocationStock: (productCode: string, warehouseCode: string, qty: number) => void;
   importProductionPlan: (dailyPlan: DailyProductionPlan, plan: ProductionPlan) => void;
+  clearProductionPlan: () => void;
   importInventoryStockBulk: (stock: InventoryStock) => void;
   importLocationStockBulk: (stock: LocationStock) => void;
+  clearLocationStock: () => void;
   setPlannedSales: (productCode: string, warehouseCode: string, qty: number) => void;
   importPlannedSalesBulk: (sales: PlannedSales) => void;
+  clearPlannedSales: () => void;
   setInTransitStock: (productCode: string, warehouseCode: string, qty: number) => void;
   importInTransitStockBulk: (stock: InTransitStock) => void;
+  clearInTransitStock: () => void;
   confirmShipment: (sendQty: Record<string, Record<string, number>>) => void;
 
   addProduct: (product: Product) => void;
@@ -208,6 +212,14 @@ export const useAppStore = create<AppState>()((set, get) => ({
     ).catch(console.error);
   },
 
+  clearProductionPlan: () => {
+    const { products } = get();
+    const emptyPlan = Object.fromEntries(products.map((p) => [p.code, 0]));
+    set(() => ({ productionPlan: emptyPlan, dailyProductionPlan: {} }));
+    db.replaceAllDailyProductionPlan({}).catch(console.error);
+    Promise.all(products.map((p) => db.upsertProductionQty(p.code, 0))).catch(console.error);
+  },
+
   // ─── 配分比率 ─────────────────────────────────────────────
   setRatio: (productCode, warehouseCode, ratio) => {
     set((s) => ({
@@ -240,6 +252,11 @@ export const useAppStore = create<AppState>()((set, get) => ({
     db.replaceAllLocationStock(stock).catch(console.error);
   },
 
+  clearLocationStock: () => {
+    set(() => ({ locationStock: {} }));
+    db.replaceAllLocationStock({}).catch(console.error);
+  },
+
   setPlannedSales: (productCode, warehouseCode, qty) => {
     set((s) => ({
       plannedSales: {
@@ -255,6 +272,11 @@ export const useAppStore = create<AppState>()((set, get) => ({
     db.replaceAllPlannedSales(sales).catch(console.error);
   },
 
+  clearPlannedSales: () => {
+    set(() => ({ plannedSales: {} }));
+    db.replaceAllPlannedSales({}).catch(console.error);
+  },
+
   setInTransitStock: (productCode, warehouseCode, qty) => {
     set((s) => ({
       inTransitStock: {
@@ -268,6 +290,11 @@ export const useAppStore = create<AppState>()((set, get) => ({
   importInTransitStockBulk: (stock) => {
     set(() => ({ inTransitStock: stock }));
     db.replaceAllInTransitStock(stock).catch(console.error);
+  },
+
+  clearInTransitStock: () => {
+    set(() => ({ inTransitStock: {} }));
+    db.replaceAllInTransitStock({}).catch(console.error);
   },
 
   confirmShipment: (sendQty) => {
