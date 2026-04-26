@@ -6,6 +6,7 @@ import clsx from 'clsx';
 
 const NAV_ITEMS = [
   { href: '/',              label: 'ダッシュボード' },
+  { href: '/inventory',    label: '在庫・積載計画' },
   { href: '/production',   label: '配送計画入力' },
   { href: '/schedule',     label: '出荷スケジュール' },
   { href: '/loading-plan', label: '積載計画' },
