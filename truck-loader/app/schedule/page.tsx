@@ -8,6 +8,40 @@ import clsx from 'clsx';
 
 const DAY_LABELS = ['月', '火', '水', '木', '金', '土', '日'];
 
+// ─── 週計算ユーティリティ ──────────────────────────────────────────────
+
+/** 指定日を含む週の月曜を返す */
+function getMondayOf(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay(); // 0=Sun
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/** ISO週番号 */
+function getISOWeek(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+}
+
+/** "M/D" フォーマット */
+function formatMD(date: Date): string {
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+/** "YYYY年第W週（M/D〜M/D）" フォーマット */
+function formatWeekLabel(monday: Date): string {
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const week = getISOWeek(monday);
+  return `${monday.getFullYear()}年 第${week}週（${formatMD(monday)}〜${formatMD(sunday)}）`;
+}
+
 export default function SchedulePage() {
   const {
     factories, products, warehouses, truckTypes,
@@ -16,11 +50,11 @@ export default function SchedulePage() {
   } = useAppStore();
 
   const [selectedFactory, setSelectedFactory] = useState<string>(factories[0]?.code ?? '');
+  // 計画週（月曜日）
+  const [planMonday, setPlanMonday] = useState<Date>(() => getMondayOf(new Date()));
 
-  // 選択中の工場
   const factory = factories.find((f) => f.code === selectedFactory);
 
-  // 選択中工場の製品に配分比率のある拠点のみを表示対象にする
   const factoryProducts = products.filter(
     (p) => (p.factoryCode ?? 'F001') === selectedFactory,
   );
@@ -32,18 +66,11 @@ export default function SchedulePage() {
     );
   }, [factoryProducts, warehouses, distributionRatios]);
 
-  // 曜日別積載計画プレビュー
   const weeklyPlans = useMemo(
     () =>
       calcWeeklyPlans(
-        warehouses,
-        products,
-        truckTypes,
-        factories,
-        productionPlan,
-        distributionRatios,
-        inventoryStock,
-        locationStock,
+        warehouses, products, truckTypes, factories,
+        productionPlan, distributionRatios, inventoryStock, locationStock,
         weeklyShippingSchedule,
       ),
     [warehouses, products, truckTypes, factories, productionPlan, distributionRatios, inventoryStock, locationStock, weeklyShippingSchedule],
@@ -51,8 +78,6 @@ export default function SchedulePage() {
 
   const factoryPlans = weeklyPlans[selectedFactory] ?? [];
 
-  // 各曜日にある拠点のプランをまとめる
-  // dayOfWeek -1 はスケジュールなし（週全体）
   const plansByDay: Record<number, typeof factoryPlans> = {};
   for (const plan of factoryPlans) {
     const key = plan.dayOfWeek;
@@ -65,31 +90,77 @@ export default function SchedulePage() {
     setShippingDay(selectedFactory, warehouseCode, dayIdx, !current);
   };
 
-  const getDayActive = (warehouseCode: string, dayIdx: number): boolean => {
-    return weeklyShippingSchedule[selectedFactory]?.[warehouseCode]?.[dayIdx] ?? false;
+  const getDayActive = (warehouseCode: string, dayIdx: number): boolean =>
+    weeklyShippingSchedule[selectedFactory]?.[warehouseCode]?.[dayIdx] ?? false;
+
+  // 各曜日の実際の日付
+  const weekDates = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(planMonday);
+    d.setDate(planMonday.getDate() + i);
+    return d;
+  });
+
+  const prevWeek = () => {
+    const d = new Date(planMonday);
+    d.setDate(d.getDate() - 7);
+    setPlanMonday(d);
   };
+  const nextWeek = () => {
+    const d = new Date(planMonday);
+    d.setDate(d.getDate() + 7);
+    setPlanMonday(d);
+  };
+  const toThisWeek = () => setPlanMonday(getMondayOf(new Date()));
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-slate-800">出荷スケジュール</h1>
-        <p className="text-sm text-slate-500 mt-0.5">工場ごとに、拠点への曜日別出荷スケジュールを設定します</p>
+    <div className="sys-page">
+
+      {/* ── ページタイトル ── */}
+      <div className="sys-page-title">出荷スケジュール</div>
+
+      {/* ── 計画週セレクター ── */}
+      <div className="card mb-5 px-5 py-3 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={prevWeek}
+            style={{ width: 30, height: 30, borderRadius: 6, border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', fontSize: 14 }}
+          >‹</button>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>
+              {formatWeekLabel(planMonday)}
+            </div>
+            <div style={{ fontSize: 11, color: '#9ca3af' }}>
+              出荷スケジュールを設定する計画週
+            </div>
+          </div>
+          <button
+            onClick={nextWeek}
+            style={{ width: 30, height: 30, borderRadius: 6, border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', fontSize: 14 }}
+          >›</button>
+        </div>
+        <button
+          onClick={toThisWeek}
+          style={{ fontSize: 12, padding: '5px 14px', borderRadius: 6, border: '1px solid #d1d5db', background: '#f9fafb', color: '#374151', cursor: 'pointer', fontWeight: 600 }}
+        >
+          今週
+        </button>
       </div>
 
-      {/* 工場タブ */}
-      <div className="flex gap-1 mb-6 border-b border-slate-200">
+      {/* ── 工場タブ ── */}
+      <div className="flex gap-1 mb-5" style={{ borderBottom: '1px solid #e5e7eb' }}>
         {factories.map((f) => (
           <button
             key={f.code}
             onClick={() => setSelectedFactory(f.code)}
-            className={clsx(
-              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2',
-              selectedFactory === f.code
-                ? 'border-brand-600 text-brand-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700',
-            )}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors"
+            style={{
+              borderBottom: selectedFactory === f.code ? '2px solid #2563eb' : '2px solid transparent',
+              color: selectedFactory === f.code ? '#2563eb' : '#6b7280',
+              marginBottom: -1,
+              background: 'none', cursor: 'pointer',
+            }}
           >
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
+            <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, fontWeight: 700, background: '#dbeafe', color: '#1e40af', border: '1px solid #bfdbfe' }}>
               {f.code}
             </span>
             {f.name}
@@ -98,97 +169,99 @@ export default function SchedulePage() {
       </div>
 
       {!factory ? (
-        <div className="text-slate-400 text-sm italic">工場マスタに工場が登録されていません。マスタ設定から追加してください。</div>
+        <p className="text-sm text-slate-400 italic">工場マスタに工場が登録されていません。</p>
       ) : factoryProducts.length === 0 ? (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-700">
+        <div className="card p-4 text-sm" style={{ background: '#fffbeb', borderColor: '#fde68a', color: '#92400e' }}>
           「{factory.name}」に割り当てられた製品がありません。マスタ設定の製品マスタから出荷工場を設定してください。
         </div>
       ) : (
         <>
-          <div className="mb-2 flex items-center gap-2">
-            <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">{factory.code}</span>
+          <div className="flex items-center gap-2 mb-3">
+            <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, fontWeight: 700, background: '#dbeafe', color: '#1e40af', border: '1px solid #bfdbfe' }}>{factory.code}</span>
             <span className="text-sm font-semibold text-slate-700">{factory.name}</span>
-            <span className="text-xs text-slate-400 ml-2">
-              — 製品 {factoryProducts.length}種、対象拠点 {relevantWarehouses.length}拠点
+            <span style={{ fontSize: 11, color: '#9ca3af' }}>
+              — 製品 {factoryProducts.length}種 / 対象拠点 {relevantWarehouses.length}拠点
             </span>
           </div>
 
-          {/* スケジュール設定グリッド */}
-          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-x-auto mb-8">
-            <table className="w-full text-sm border-collapse">
+          {/* ── スケジュール設定グリッド ── */}
+          <div className="card overflow-x-auto mb-6">
+            <table className="w-full" style={{ borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
-                <tr className="bg-slate-50">
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 border-b border-slate-200 sticky left-0 bg-slate-50 z-10 min-w-[180px]">
+                <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                  <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 600, color: '#6b7280', position: 'sticky', left: 0, background: '#f9fafb', zIndex: 10, minWidth: 180, borderRight: '1px solid #f3f4f6' }}>
                     拠点
                   </th>
-                  {DAY_LABELS.map((day, i) => (
-                    <th
-                      key={i}
-                      className={clsx(
-                        'px-4 py-2.5 text-center text-xs font-semibold border-b border-slate-200 min-w-[60px]',
-                        i === 5 ? 'text-blue-600' : i === 6 ? 'text-red-500' : 'text-slate-500',
-                      )}
-                    >
-                      {day}
+                  {weekDates.map((date, i) => (
+                    <th key={i} style={{
+                      padding: '8px 10px', textAlign: 'center', minWidth: 68,
+                      color: i === 5 ? '#2563eb' : i === 6 ? '#dc2626' : '#6b7280',
+                      fontWeight: 600,
+                    }}>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>{DAY_LABELS[i]}</div>
+                      <div style={{ fontSize: 10, fontWeight: 400, color: i === 5 ? '#93c5fd' : i === 6 ? '#fca5a5' : '#9ca3af' }}>
+                        {formatMD(date)}
+                      </div>
                     </th>
                   ))}
-                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-slate-400 border-b border-slate-200 min-w-[60px]">
-                    設定日数
+                  <th style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 600, color: '#9ca3af', minWidth: 60 }}>
+                    日数
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {relevantWarehouses.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-6 text-center text-slate-400 text-sm italic">
+                    <td colSpan={9} style={{ padding: '24px', textAlign: 'center', color: '#9ca3af', fontStyle: 'italic' }}>
                       配分比率が設定された拠点がありません
                     </td>
                   </tr>
                 ) : (
-                  relevantWarehouses.map((wh) => {
+                  relevantWarehouses.map((wh, ri) => {
                     const activeDayCount = DAY_LABELS.filter((_, i) => getDayActive(wh.code, i)).length;
                     return (
-                      <tr key={wh.code} className="border-t border-slate-100 hover:bg-slate-50">
-                        <td className="px-4 py-2 sticky left-0 bg-white hover:bg-slate-50 z-10 border-r border-slate-100">
+                      <tr key={wh.code} style={{ borderBottom: '1px solid #f3f4f6', background: ri % 2 === 0 ? 'white' : '#fafafa' }}>
+                        <td style={{ padding: '8px 16px', position: 'sticky', left: 0, background: ri % 2 === 0 ? 'white' : '#fafafa', zIndex: 10, borderRight: '1px solid #f3f4f6' }}>
                           <div className="flex items-center gap-2">
-                            <span className={clsx(
-                              'text-[10px] font-bold px-1 py-0.5 rounded-full shrink-0',
-                              wh.group === '東' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700',
-                            )}>
-                              {wh.group}
-                            </span>
+                            <span style={{
+                              fontSize: 9, padding: '1px 5px', borderRadius: 3, fontWeight: 700,
+                              background: wh.group === '東' ? '#dbeafe' : '#fee2e2',
+                              color: wh.group === '東' ? '#1e40af' : '#b91c1c',
+                              border: `1px solid ${wh.group === '東' ? '#bfdbfe' : '#fecaca'}`,
+                            }}>{wh.group}</span>
                             <div>
-                              <div className="text-xs font-medium text-slate-700 leading-tight">{wh.name}</div>
-                              <div className="text-[10px] text-slate-400">{wh.code}</div>
+                              <div style={{ fontWeight: 600, color: '#374151' }}>{wh.name}</div>
+                              <div style={{ fontSize: 10, color: '#9ca3af', fontFamily: 'monospace' }}>{wh.code}</div>
                             </div>
                           </div>
                         </td>
                         {DAY_LABELS.map((_, dayIdx) => {
                           const active = getDayActive(wh.code, dayIdx);
                           return (
-                            <td key={dayIdx} className="px-2 py-2 text-center">
+                            <td key={dayIdx} style={{ padding: '6px 6px', textAlign: 'center' }}>
                               <button
                                 onClick={() => handleToggle(wh.code, dayIdx)}
-                                className={clsx(
-                                  'w-8 h-8 rounded-md border-2 text-xs font-bold transition-all',
-                                  active
-                                    ? 'bg-brand-600 border-brand-600 text-white'
-                                    : 'bg-white border-slate-200 text-slate-300 hover:border-brand-400 hover:text-brand-400',
-                                )}
-                                title={`${wh.name} — ${DAY_LABELS[dayIdx]}曜日`}
+                                style={{
+                                  width: 34, height: 34, borderRadius: 6, fontSize: 13, fontWeight: 700,
+                                  border: active ? '2px solid #2563eb' : '2px solid #e5e7eb',
+                                  background: active ? '#2563eb' : 'white',
+                                  color: active ? 'white' : '#d1d5db',
+                                  cursor: 'pointer', transition: 'all 0.15s',
+                                }}
+                                title={`${wh.name} — ${DAY_LABELS[dayIdx]}曜日（${formatMD(weekDates[dayIdx])}）`}
                               >
                                 {active ? '✓' : ''}
                               </button>
                             </td>
                           );
                         })}
-                        <td className="px-4 py-2 text-center">
+                        <td style={{ padding: '8px 16px', textAlign: 'center' }}>
                           {activeDayCount > 0 ? (
-                            <span className="text-xs font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded-full">
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}>
                               {activeDayCount}日
                             </span>
                           ) : (
-                            <span className="text-xs text-slate-300">未設定</span>
+                            <span style={{ fontSize: 11, color: '#d1d5db' }}>未設定</span>
                           )}
                         </td>
                       </tr>
@@ -199,46 +272,42 @@ export default function SchedulePage() {
             </table>
           </div>
 
-          {/* 出荷数量プレビュー */}
+          {/* ── 出荷数量プレビュー ── */}
           <section>
-            <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-3">
-              出荷数量プレビュー（曜日別）
-            </h2>
+            <div className="section-title mb-3">出荷数量プレビュー（曜日別）</div>
 
             {factoryPlans.length === 0 ? (
-              <div className="text-sm text-slate-400 italic bg-slate-50 rounded-lg p-4 text-center">
-                出荷計画がありません。生産計画入力から数量を設定してください。
+              <div className="card p-4 text-center" style={{ fontSize: 13, color: '#9ca3af', fontStyle: 'italic' }}>
+                出荷計画がありません。配送計画入力から数量を設定してください。
               </div>
             ) : (
-              <div className="space-y-4">
-                {/* スケジュールなし (dayOfWeek === -1) */}
+              <div className="flex flex-col gap-4">
                 {plansByDay[-1] && plansByDay[-1].length > 0 && (
                   <div>
-                    <div className="text-xs font-semibold text-slate-500 mb-2 flex items-center gap-2">
-                      <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded">スケジュール未設定（週計）</span>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 10, background: '#f3f4f6', color: '#6b7280', border: '1px solid #e5e7eb' }}>
+                        スケジュール未設定（週計）
+                      </span>
                     </div>
                     <PreviewTable plans={plansByDay[-1]} />
                   </div>
                 )}
-
-                {/* 曜日別プラン */}
                 {DAY_LABELS.map((dayLabel, dayIdx) => {
                   const plans = plansByDay[dayIdx];
                   if (!plans || plans.length === 0) return null;
+                  const dateStr = formatMD(weekDates[dayIdx]);
                   return (
                     <div key={dayIdx}>
-                      <div className="text-xs font-semibold text-slate-500 mb-2 flex items-center gap-2">
-                        <span className={clsx(
-                          'px-2 py-0.5 rounded font-bold',
-                          dayIdx === 5
-                            ? 'bg-blue-100 text-blue-700'
-                            : dayIdx === 6
-                            ? 'bg-red-100 text-red-600'
-                            : 'bg-brand-100 text-brand-700',
-                        )}>
-                          {dayLabel}曜日
+                      <div className="flex items-center gap-2 mb-2">
+                        <span style={{
+                          fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 10,
+                          background: dayIdx === 5 ? '#eff6ff' : dayIdx === 6 ? '#fef2f2' : '#eff6ff',
+                          color: dayIdx === 5 ? '#2563eb' : dayIdx === 6 ? '#dc2626' : '#2563eb',
+                          border: `1px solid ${dayIdx === 5 ? '#bfdbfe' : dayIdx === 6 ? '#fecaca' : '#bfdbfe'}`,
+                        }}>
+                          {dayLabel}曜日（{dateStr}）
                         </span>
-                        <span className="text-slate-400">{plans.length}拠点</span>
+                        <span style={{ fontSize: 11, color: '#9ca3af' }}>{plans.length}拠点</span>
                       </div>
                       <PreviewTable plans={plans} />
                     </div>
@@ -255,36 +324,30 @@ export default function SchedulePage() {
 
 function PreviewTable({ plans }: { plans: DayWarehousePlan[] }) {
   return (
-    <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-      <table className="w-full text-sm">
+    <div className="card overflow-hidden">
+      <table className="data-table">
         <thead>
-          <tr className="bg-slate-50 text-xs text-slate-500">
-            <th className="px-4 py-2 text-left font-semibold">拠点コード</th>
-            <th className="px-4 py-2 text-right font-semibold">台数</th>
-            <th className="px-4 py-2 text-right font-semibold">パレット</th>
-            <th className="px-4 py-2 text-right font-semibold">出荷個数</th>
+          <tr>
+            <th>拠点コード</th>
+            <th className="text-right">台数</th>
+            <th className="text-right">パレット</th>
+            <th className="text-right">出荷個数</th>
           </tr>
         </thead>
         <tbody>
           {plans.map((plan) => (
-            <tr key={plan.warehouseCode} className="border-t border-slate-100 hover:bg-slate-50">
-              <td className="px-4 py-2 font-mono text-xs text-slate-500">{plan.warehouseCode}</td>
-              <td className="px-4 py-2 text-right">{plan.trucks.length}台</td>
-              <td className="px-4 py-2 text-right">{plan.totalPallets}枚</td>
-              <td className="px-4 py-2 text-right font-medium">{plan.totalQty.toLocaleString()}個</td>
+            <tr key={plan.warehouseCode}>
+              <td style={{ fontFamily: 'monospace', color: '#6b7280' }}>{plan.warehouseCode}</td>
+              <td className="text-right">{plan.trucks.length}台</td>
+              <td className="text-right">{plan.totalPallets}枚</td>
+              <td className="text-right font-medium">{plan.totalQty.toLocaleString()}個</td>
             </tr>
           ))}
-          <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold text-xs">
-            <td className="px-4 py-2 text-slate-600">小計</td>
-            <td className="px-4 py-2 text-right text-brand-600">
-              {plans.reduce((s, p) => s + p.trucks.length, 0)}台
-            </td>
-            <td className="px-4 py-2 text-right text-slate-600">
-              {plans.reduce((s, p) => s + p.totalPallets, 0)}枚
-            </td>
-            <td className="px-4 py-2 text-right text-brand-600">
-              {plans.reduce((s, p) => s + p.totalQty, 0).toLocaleString()}個
-            </td>
+          <tr style={{ background: '#f9fafb', fontWeight: 700, borderTop: '2px solid #e5e7eb' }}>
+            <td style={{ fontSize: 11, color: '#6b7280' }}>小計</td>
+            <td className="text-right" style={{ color: '#2563eb' }}>{plans.reduce((s, p) => s + p.trucks.length, 0)}台</td>
+            <td className="text-right" style={{ color: '#374151' }}>{plans.reduce((s, p) => s + p.totalPallets, 0)}枚</td>
+            <td className="text-right" style={{ color: '#2563eb' }}>{plans.reduce((s, p) => s + p.totalQty, 0).toLocaleString()}個</td>
           </tr>
         </tbody>
       </table>

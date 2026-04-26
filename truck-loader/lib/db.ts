@@ -7,6 +7,7 @@ import type {
   Factory, Product, Warehouse, TruckType, PalletType,
   ProductionPlan, DailyProductionPlan, DistributionRatios,
   InventoryStock, LocationStock, WeeklyShippingSchedule, InTransitStock, PlannedSales,
+  OperatingDays,
 } from './types';
 
 // ─── Factories ────────────────────────────────────────────────────────────────
@@ -434,6 +435,26 @@ export async function upsertShippingSchedule(factoryCode: string, warehouseCode:
   const { error } = await supabase.from('weekly_shipping_schedule').upsert({
     factory_code: factoryCode,
     warehouse_code: warehouseCode,
+    days,
+  });
+  if (error) throw error;
+}
+
+// ─── Operating Days ──────────────────────────────────────────────────────────
+
+export async function loadOperatingDays(): Promise<OperatingDays> {
+  const { data, error } = await supabase.from('operating_days').select('*');
+  if (error) throw error;
+  const result: OperatingDays = {};
+  for (const r of data ?? []) {
+    result[r.factory_code] = r.days as boolean[];
+  }
+  return result;
+}
+
+export async function upsertOperatingDays(factoryCode: string, days: boolean[]) {
+  const { error } = await supabase.from('operating_days').upsert({
+    factory_code: factoryCode,
     days,
   });
   if (error) throw error;

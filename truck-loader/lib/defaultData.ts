@@ -1,4 +1,4 @@
-import type { Factory, Product, Warehouse, TruckType, PalletType, ProductionPlan, DistributionRatios, InventoryStock, LocationStock, WeeklyShippingSchedule } from './types';
+import type { Factory, Product, Warehouse, TruckType, PalletType, ProductionPlan, DistributionRatios, InventoryStock, LocationStock, WeeklyShippingSchedule, OperatingDays } from './types';
 
 export const DEFAULT_FACTORIES: Factory[] = [
   { code: 'F001', name: '直方工場' },
@@ -73,3 +73,8 @@ export const DEFAULT_DISTRIBUTION_RATIOS: DistributionRatios = {
 };
 
 export const DEFAULT_SHIPPING_SCHEDULE: WeeklyShippingSchedule = {};
+
+// 稼働日マスター（月〜金 = true, 土日 = false）
+export const DEFAULT_OPERATING_DAYS: OperatingDays = {
+  'F001': [true, true, true, true, true, false, false],
+};

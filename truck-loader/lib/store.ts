@@ -3,6 +3,7 @@ import type {
   Factory, Product, Warehouse, TruckType, PalletType,
   ProductionPlan, DailyProductionPlan, DistributionRatios,
   InventoryStock, LocationStock, WeeklyShippingSchedule, InTransitStock, PlannedSales,
+  OperatingDays,
 } from './types';
 import {
   DEFAULT_FACTORIES,
@@ -15,6 +16,7 @@ import {
   DEFAULT_INVENTORY_STOCK,
   DEFAULT_LOCATION_STOCK,
   DEFAULT_SHIPPING_SCHEDULE,
+  DEFAULT_OPERATING_DAYS,
 } from './defaultData';
 import * as db from './db';
 
@@ -36,6 +38,7 @@ interface AppState {
   inventoryStock: InventoryStock;
   locationStock: LocationStock;
   weeklyShippingSchedule: WeeklyShippingSchedule;
+  operatingDays: OperatingDays;
   inTransitStock: InTransitStock;
   plannedSales: PlannedSales;
 
@@ -47,6 +50,7 @@ interface AppState {
   removeFactory: (code: string) => void;
 
   setShippingDay: (factoryCode: string, warehouseCode: string, dayIndex: number, active: boolean) => void;
+  setOperatingDay: (factoryCode: string, dayIndex: number, active: boolean) => void;
   setProductionQty: (productCode: string, qty: number) => void;
   setRatio: (productCode: string, warehouseCode: string, ratio: number) => void;
   importDistributionRatiosBulk: (ratios: DistributionRatios) => void;
@@ -94,6 +98,7 @@ const defaultState = {
   inventoryStock: DEFAULT_INVENTORY_STOCK,
   locationStock: DEFAULT_LOCATION_STOCK,
   weeklyShippingSchedule: DEFAULT_SHIPPING_SCHEDULE,
+  operatingDays: DEFAULT_OPERATING_DAYS,
   inTransitStock: {} as InTransitStock,
   plannedSales: {} as PlannedSales,
 };
@@ -116,6 +121,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         inventoryStock,
         locationStock,
         weeklyShippingSchedule,
+        operatingDays,
         inTransitStock,
         plannedSales,
       ] = await Promise.all([
@@ -130,6 +136,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         db.loadInventoryStock(),
         db.loadLocationStock(),
         db.loadWeeklyShippingSchedule(),
+        db.loadOperatingDays(),
         db.loadInTransitStock(),
         db.loadPlannedSales(),
       ]);
@@ -154,6 +161,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         inventoryStock: Object.keys(inventoryStock).length > 0 ? inventoryStock : DEFAULT_INVENTORY_STOCK,
         locationStock,
         weeklyShippingSchedule,
+        operatingDays: Object.keys(operatingDays).length > 0 ? operatingDays : DEFAULT_OPERATING_DAYS,
         inTransitStock,
         plannedSales,
       });
@@ -162,6 +170,18 @@ export const useAppStore = create<AppState>()((set, get) => ({
       // エラー時はデフォルト値で動作継続
       set({ isLoaded: true });
     }
+  },
+
+  // ─── 稼働日マスター ────────────────────────────────────────
+  setOperatingDay: (factoryCode, dayIndex, active) => {
+    set((s) => {
+      const current = s.operatingDays[factoryCode] ?? [true, true, true, true, true, false, false];
+      const newDays = [...current] as boolean[];
+      newDays[dayIndex] = active;
+      const newOperatingDays = { ...s.operatingDays, [factoryCode]: newDays };
+      db.upsertOperatingDays(factoryCode, newDays).catch(console.error);
+      return { operatingDays: newOperatingDays };
+    });
   },
 
   // ─── 工場 ─────────────────────────────────────────────────

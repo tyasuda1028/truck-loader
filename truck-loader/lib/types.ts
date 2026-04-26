@@ -72,6 +72,9 @@ export type PlannedSales = Record<string, Record<string, number>>;
 // Weekly shipping schedule: factoryCode → warehouseCode → [Mon,Tue,Wed,Thu,Fri,Sat,Sun] booleans
 export type WeeklyShippingSchedule = Record<string, Record<string, boolean[]>>;
 
+/** 稼働日マスター: factoryCode → [Mon,Tue,Wed,Thu,Fri,Sat,Sun] booleans */
+export type OperatingDays = Record<string, boolean[]>;
+
 // ─── 計算結果型 ──────────────────────────────────────────────────────
 
 export interface PalletItem {

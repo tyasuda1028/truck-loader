@@ -12,11 +12,12 @@ const PRESET_COLORS = [
   '#3498DB','#27AE60','#D35400','#8E44AD',
 ];
 
-type Tab = 'products' | 'warehouses' | 'pallets' | 'factories';
+type Tab = 'products' | 'warehouses' | 'pallets' | 'factories' | 'operating';
 
 export default function SettingsPage() {
   const {
     factories, products, warehouses, truckTypes, palletTypes,
+    operatingDays, setOperatingDay,
     addFactory, updateFactory, removeFactory,
     addProduct, updateProduct, removeProduct,
     addWarehouse, updateWarehouse, removeWarehouse,
@@ -128,6 +129,7 @@ export default function SettingsPage() {
           { key: 'warehouses', label: '🏭 拠点マスタ' },
           { key: 'pallets',    label: '🪵 パレット型' },
           { key: 'factories',  label: '🏭 工場マスタ' },
+          { key: 'operating',  label: '📅 稼働日マスタ' },
         ] as { key: Tab; label: string }[]).map(({ key, label }) => (
           <button
             key={key}
@@ -602,6 +604,76 @@ export default function SettingsPage() {
               isNew={!palletTypes.some((p) => p.code === editingPallet.code)}
             />
           )}
+        </div>
+      )}
+
+      {/* ── 稼働日マスタ ── */}
+      {tab === 'operating' && (
+        <div>
+          <p className="text-xs text-slate-500 mb-4">
+            工場ごとに稼働する曜日を設定します。チェックした曜日が出荷計画の対象となります。
+          </p>
+          <div className="card overflow-hidden">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th className="text-left" style={{ minWidth: 160 }}>工場</th>
+                  {['月', '火', '水', '木', '金', '土', '日'].map((d, i) => (
+                    <th key={i} className="text-center" style={{
+                      minWidth: 52,
+                      color: i === 5 ? '#2563eb' : i === 6 ? '#dc2626' : undefined,
+                    }}>{d}</th>
+                  ))}
+                  <th className="text-center" style={{ minWidth: 60 }}>稼働日数</th>
+                </tr>
+              </thead>
+              <tbody>
+                {factories.map((f) => {
+                  const days: boolean[] = operatingDays[f.code] ?? [true, true, true, true, true, false, false];
+                  const count = days.filter(Boolean).length;
+                  return (
+                    <tr key={f.code}>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, fontWeight: 700, background: '#dbeafe', color: '#1e40af', border: '1px solid #bfdbfe' }}>
+                            {f.code}
+                          </span>
+                          <span className="font-medium text-slate-700">{f.name}</span>
+                        </div>
+                      </td>
+                      {days.map((active, dayIdx) => (
+                        <td key={dayIdx} className="text-center" style={{ padding: '6px 4px' }}>
+                          <button
+                            onClick={() => setOperatingDay(f.code, dayIdx, !active)}
+                            style={{
+                              width: 34, height: 34, borderRadius: 6,
+                              border: active ? '2px solid #2563eb' : '2px solid #e5e7eb',
+                              background: active ? '#2563eb' : 'white',
+                              color: active ? 'white' : '#d1d5db',
+                              fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                              transition: 'all 0.15s',
+                            }}
+                          >
+                            {active ? '✓' : ''}
+                          </button>
+                        </td>
+                      ))}
+                      <td className="text-center">
+                        <span style={{
+                          fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
+                          background: count > 0 ? '#eff6ff' : '#f9fafb',
+                          color: count > 0 ? '#2563eb' : '#9ca3af',
+                          border: `1px solid ${count > 0 ? '#bfdbfe' : '#e5e7eb'}`,
+                        }}>
+                          {count}日
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
