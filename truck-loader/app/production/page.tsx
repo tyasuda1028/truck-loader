@@ -31,7 +31,6 @@ export default function ProductionPage() {
   } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<Tab>('production');
-  const [clearConfirm, setClearConfirm] = useState<Tab | null>(null);
   const now = new Date();
 
   // 生産計画 CSV
@@ -77,12 +76,10 @@ export default function ProductionPage() {
 
   // ─── 一括クリア ──────────────────────────────────────────────────────
   const handleClear = (tab: Tab) => {
-    if (clearConfirm !== tab) { setClearConfirm(tab); return; }
     if (tab === 'production') clearProductionPlan();
     if (tab === 'location')   clearLocationStock();
     if (tab === 'transit')    clearInTransitStock();
     if (tab === 'sales')      clearPlannedSales();
-    setClearConfirm(null);
   };
 
   // ─── CSV ハンドラ ────────────────────────────────────────────────────
@@ -163,7 +160,7 @@ export default function ProductionPage() {
         {tabs.map(({ key, label }) => (
           <button
             key={key}
-            onClick={() => { setActiveTab(key); setClearConfirm(null); }}
+            onClick={() => setActiveTab(key)}
             className={clsx(
               'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
               activeTab === key
@@ -176,29 +173,13 @@ export default function ProductionPage() {
         ))}
         {/* 一括クリアボタン（ratioタブ以外） */}
         {activeTab !== 'ratio' && (
-          <div className="ml-auto flex items-center gap-2 pb-1">
-            {clearConfirm === activeTab && (
-              <span className="text-xs text-red-600 font-medium">本当にクリアしますか？</span>
-            )}
+          <div className="ml-auto pb-1">
             <button
               onClick={() => handleClear(activeTab)}
-              className={clsx(
-                'text-xs px-3 py-1.5 rounded border transition-colors',
-                clearConfirm === activeTab
-                  ? 'bg-red-600 text-white border-red-600 hover:bg-red-700'
-                  : 'border-slate-300 text-slate-500 hover:border-red-400 hover:text-red-500 hover:bg-red-50',
-              )}
+              className="text-xs px-3 py-1.5 rounded border border-slate-300 text-slate-500 hover:border-red-400 hover:text-red-500 hover:bg-red-50 transition-colors"
             >
-              {clearConfirm === activeTab ? '✓ クリア実行' : '🗑 一括クリア'}
+              🗑 一括クリア
             </button>
-            {clearConfirm === activeTab && (
-              <button
-                onClick={() => setClearConfirm(null)}
-                className="text-xs px-2 py-1.5 rounded border border-slate-200 text-slate-400 hover:text-slate-600"
-              >
-                キャンセル
-              </button>
-            )}
           </div>
         )}
       </div>

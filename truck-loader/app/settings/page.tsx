@@ -30,7 +30,6 @@ export default function SettingsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null);
   const [editingPallet, setEditingPallet] = useState<PalletType | null>(null);
-  const [showConfirm, setShowConfirm] = useState(false);
 
   // 製品CSV インポート用
   const prodCsvRef = useRef<HTMLInputElement>(null);
@@ -114,39 +113,13 @@ export default function SettingsPage() {
           <p className="text-sm text-slate-500 mt-0.5">製品・拠点のマスタデータを管理します</p>
         </div>
         <button
-          onClick={() => setShowConfirm(true)}
+          onClick={() => resetToDefaults()}
           className="text-xs text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-300
                      px-3 py-1.5 rounded transition-colors"
         >
           デフォルトにリセット
         </button>
       </div>
-
-      {/* リセット確認ダイアログ */}
-      {showConfirm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 shadow-xl max-w-sm w-full mx-4">
-            <h3 className="font-bold text-slate-800 mb-2">リセットの確認</h3>
-            <p className="text-sm text-slate-600 mb-4">
-              すべての設定をデフォルト値に戻します。入力したデータはすべて失われます。よろしいですか？
-            </p>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setShowConfirm(false)}
-                className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
-              >
-                キャンセル
-              </button>
-              <button
-                onClick={() => { resetToDefaults(); setShowConfirm(false); }}
-                className="px-4 py-2 text-sm text-white bg-red-500 rounded-lg hover:bg-red-600"
-              >
-                リセット
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* タブ */}
       <div className="flex gap-1 mb-4 border-b border-slate-200">
@@ -228,7 +201,7 @@ export default function SettingsPage() {
                               alert(`「${f.name}」には ${productCount} 製品が割り当てられているため削除できません。`);
                               return;
                             }
-                            if (confirm(`「${f.name}」を削除しますか？`)) removeFactory(f.code);
+                            removeFactory(f.code);
                           }}
                           className="text-xs text-red-400 hover:underline"
                         >
@@ -438,7 +411,7 @@ export default function SettingsPage() {
                         </button>
                         <button
                           onClick={() => {
-                            if (confirm(`「${p.name}」を削除しますか？`)) removeProduct(p.code);
+                            removeProduct(p.code);
                           }}
                           className="text-xs text-red-400 hover:underline"
                         >
@@ -518,7 +491,7 @@ export default function SettingsPage() {
                         </button>
                         <button
                           onClick={() => {
-                            if (confirm(`「${w.name}」を削除しますか？`)) removeWarehouse(w.code);
+                            removeWarehouse(w.code);
                           }}
                           className="text-xs text-red-400 hover:underline"
                         >
@@ -605,7 +578,7 @@ export default function SettingsPage() {
                               alert(`「${pt.name}」は ${usedCount} 製品で使用中のため削除できません。`);
                               return;
                             }
-                            if (confirm(`「${pt.name}」を削除しますか？`)) removePalletType(pt.code);
+                            removePalletType(pt.code);
                           }}
                           className="text-xs text-red-400 hover:underline"
                         >
