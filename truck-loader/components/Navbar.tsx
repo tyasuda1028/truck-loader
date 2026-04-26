@@ -84,12 +84,12 @@ export function Navbar() {
         }}
       >
         <Image
-          src="/paloma-logo.png"
+          src="/paloma-logo-black.jpg"
           alt="Paloma"
-          width={120}
+          width={150}
           height={36}
           priority
-          style={{ height: 32, width: 'auto', objectFit: 'contain' }}
+          style={{ height: 34, width: 'auto', objectFit: 'contain' }}
         />
         <div style={{ width: 1, height: 24, background: '#e5e7eb' }} />
         <span style={{ fontSize: 14, fontWeight: 600, color: '#374151', letterSpacing: '0.04em' }}>
