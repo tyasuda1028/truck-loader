@@ -6,13 +6,129 @@ html, body {
   height: 100%;
 }
 
-/* スクロールバー細め */
+/* ─── スクロールバー細め ─── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #64748b; }
 
-/* 数値入力フィールドの矢印非表示 */
+/* ─── 数値入力フィールドの矢印非表示 ─── */
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 input[type=number] { -moz-appearance: textfield; }
+
+/* ─── 生産管理システム共通スタイル ─── */
+
+/* カードパネル */
+.sys-panel {
+  background: white;
+  border: 1px solid #d1d9e2;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+}
+
+/* セクションヘッダー（水平ライン+ラベル） */
+.sys-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px 8px;
+  background: linear-gradient(180deg, #f0f4f8 0%, #e8eef5 100%);
+  border-bottom: 1px solid #c8d4df;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2c4a68;
+  letter-spacing: 0.05em;
+}
+
+.sys-section-header::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 14px;
+  background: #1a3a5c;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* データテーブル */
+.sys-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.sys-table th {
+  background: linear-gradient(180deg, #e8eef5 0%, #dde6ef 100%);
+  border: 1px solid #c0cdd9;
+  padding: 6px 10px;
+  text-align: center;
+  font-weight: 700;
+  color: #2c4a68;
+  white-space: nowrap;
+}
+
+.sys-table td {
+  border: 1px solid #d4dde6;
+  padding: 5px 10px;
+  color: #334155;
+}
+
+.sys-table tbody tr:nth-child(even) td {
+  background: #f7f9fc;
+}
+
+.sys-table tbody tr:hover td {
+  background: #eef4fb;
+}
+
+/* ボタン系 */
+.sys-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.sys-btn-primary {
+  background: linear-gradient(180deg, #2563a8 0%, #1a3a5c 100%);
+  border-color: #1a3a5c;
+  color: white;
+}
+.sys-btn-primary:hover {
+  background: linear-gradient(180deg, #1d4e8f 0%, #132d47 100%);
+}
+
+.sys-btn-secondary {
+  background: linear-gradient(180deg, #f8fafc 0%, #edf2f7 100%);
+  border-color: #b0bec9;
+  color: #2c4a68;
+}
+.sys-btn-secondary:hover {
+  background: linear-gradient(180deg, #edf2f7 0%, #e2eaf1 100%);
+}
+
+/* ページラッパー */
+.sys-page {
+  padding: 16px 20px 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* ページタイトル */
+.sys-page-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a3a5c;
+  letter-spacing: 0.04em;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #1a3a5c;
+  margin-bottom: 16px;
+}

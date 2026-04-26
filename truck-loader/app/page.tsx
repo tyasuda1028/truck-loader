@@ -33,6 +33,22 @@ export default function DashboardPage() {
 
   const DAY_NAMES = ['月', '火', '水', '木', '金', '土', '日'];
 
+  // テーブルセルスタイル定数
+  const thStyle: React.CSSProperties = {
+    border: '1px solid #c0cdd9',
+    padding: '6px 10px',
+    fontWeight: 700,
+    color: '#2c4a68',
+    whiteSpace: 'nowrap' as const,
+    fontSize: 11,
+  };
+  const tdStyle: React.CSSProperties = {
+    border: '1px solid #d4dde6',
+    padding: '5px 8px',
+    color: '#334155',
+    fontSize: 11,
+  };
+
   const truckMap = Object.fromEntries(truckTypes.map((t) => [t.code, t]));
 
   // サマリー集計
@@ -49,43 +65,46 @@ export default function DashboardPage() {
   const currentFactoryTab = activeFactoryTab || factoriesWithProducts[0]?.code || '';
 
   return (
-    <div className="max-w-screen-xl mx-auto px-4 py-6">
+    <div className="sys-page">
 
       {/* ── ページタイトル ── */}
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-slate-800">ダッシュボード</h1>
-        <p className="text-sm text-slate-500 mt-0.5">今週の出荷計画サマリー</p>
+      <div className="sys-page-title flex items-center gap-2 mb-4">
+        <span>ダッシュボード</span>
+        <span className="text-xs font-normal text-slate-400 ml-2">今週の出荷計画サマリー</span>
       </div>
 
       {/* ── 1. KPIカード ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
         {[
-          { label: '使用台数',    value: totalTrucks,               unit: '台',   icon: '🚛' },
-          { label: '総パレット数', value: totalPallets,              unit: '枚',   icon: '📦' },
-          { label: '総出荷個数',  value: totalQty.toLocaleString(),  unit: '個',   icon: '📊' },
-          { label: '出荷拠点数',  value: activePlans.length,         unit: '拠点', icon: '🏭' },
-        ].map(({ label, value, unit, icon }) => (
-          <div key={label} className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm">
-            <div className="text-2xl mb-1">{icon}</div>
-            <div className="text-2xl font-bold text-brand-600">{value}</div>
-            <div className="text-xs text-slate-400">{unit}</div>
-            <div className="text-xs text-slate-500 mt-0.5 font-medium">{label}</div>
+          { label: '使用台数',    value: totalTrucks,               unit: '台',   color: '#1a3a5c' },
+          { label: '総パレット数', value: totalPallets,              unit: '枚',   color: '#1a6645' },
+          { label: '総出荷個数',  value: totalQty.toLocaleString(),  unit: '個',   color: '#7c3a0d' },
+          { label: '出荷拠点数',  value: activePlans.length,         unit: '拠点', color: '#4a1c6b' },
+        ].map(({ label, value, unit, color }) => (
+          <div key={label}
+            className="bg-white flex items-center gap-4 px-5 py-3"
+            style={{ border: '1px solid #c8d4df', borderLeft: `4px solid ${color}`, borderRadius: 4, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
+          >
+            <div>
+              <div className="text-2xl font-bold" style={{ color }}>{value}</div>
+              <div className="text-xs" style={{ color: '#64748b' }}>{unit}</div>
+            </div>
+            <div className="text-xs font-semibold" style={{ color: '#475569' }}>{label}</div>
           </div>
         ))}
       </div>
 
       {/* ── 2. 拠点別 積載計画（カードグリッド）── */}
-      <section className="mb-8">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wide">
-            拠点別 積載計画
-          </h2>
-          <Link href="/loading-plan" className="text-xs text-brand-600 hover:underline">
-            詳細を見る →
-          </Link>
-        </div>
+      <section className="mb-5">
+        <div className="sys-panel">
+          <div className="sys-section-header justify-between">
+            <span>拠点別 積載計画</span>
+            <Link href="/loading-plan" className="font-normal text-brand-500 hover:underline" style={{ fontSize: 11 }}>
+              詳細を見る →
+            </Link>
+          </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3">
           {warehouses.map((wh) => {
             const plan    = plans[wh.code];
             const truck   = truckMap[wh.truckType];
@@ -97,75 +116,82 @@ export default function DashboardPage() {
                 key={wh.code}
                 href="/loading-plan"
                 className={clsx(
-                  'bg-white rounded-lg border border-slate-200 p-4 shadow-sm hover:shadow-md',
-                  'hover:border-brand-500 transition-all',
+                  'block bg-white p-3 transition-all',
                   !hasPlan && 'opacity-50',
                 )}
+                style={{
+                  border: '1px solid #c8d4df',
+                  borderRadius: 3,
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                }}
               >
                 <div className="flex items-start justify-between mb-2">
                   <div>
-                    <div className="text-xs font-bold text-slate-400">{wh.code}</div>
-                    <div className="text-sm font-semibold text-slate-800">{wh.name}</div>
+                    <div className="font-mono" style={{ fontSize: 10, color: '#94a3b8' }}>{wh.code}</div>
+                    <div className="font-semibold" style={{ fontSize: 13, color: '#1e3a5f' }}>{wh.name}</div>
                   </div>
-                  <span className={clsx(
-                    'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
-                    wh.group === '東' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700',
-                  )}>
+                  <span
+                    className="font-bold"
+                    style={{
+                      fontSize: 10, padding: '1px 6px', borderRadius: 2,
+                      background: wh.group === '東' ? '#dbeafe' : '#fee2e2',
+                      color: wh.group === '東' ? '#1e40af' : '#b91c1c',
+                      border: `1px solid ${wh.group === '東' ? '#bfdbfe' : '#fecaca'}`,
+                    }}
+                  >
                     {wh.group}
                   </span>
                 </div>
 
                 {hasPlan ? (
                   <>
-                    <div className="flex gap-4 text-xs text-slate-500 mb-2">
-                      <span><strong className="text-slate-800">{plan.trucks.length}</strong> 台</span>
-                      <span><strong className="text-slate-800">{plan.totalPallets}</strong> パレット</span>
-                      <span><strong className="text-slate-800">{plan.totalQty.toLocaleString()}</strong> 個</span>
+                    <div className="flex gap-4 mb-2" style={{ fontSize: 11, color: '#64748b' }}>
+                      <span><strong style={{ color: '#1e3a5f' }}>{plan.trucks.length}</strong> 台</span>
+                      <span><strong style={{ color: '#1e3a5f' }}>{plan.totalPallets}</strong> 枚</span>
+                      <span><strong style={{ color: '#1e3a5f' }}>{plan.totalQty.toLocaleString()}</strong> 個</span>
                     </div>
-                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#e2e8f0' }}>
                       <div
-                        className={clsx(
-                          'h-full rounded-full',
-                          fr >= 90 ? 'bg-emerald-500' : fr >= 60 ? 'bg-amber-400' : 'bg-red-400',
-                        )}
-                        style={{ width: `${fr}%` }}
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${fr}%`,
+                          background: fr >= 90 ? '#16a34a' : fr >= 60 ? '#d97706' : '#dc2626',
+                        }}
                       />
                     </div>
-                    <div className="text-[10px] text-slate-400 mt-0.5 text-right">積載率 {fr}%</div>
+                    <div style={{ fontSize: 10, color: '#94a3b8', textAlign: 'right', marginTop: 2 }}>積載率 {fr}%</div>
                   </>
                 ) : (
-                  <div className="text-xs text-slate-400 italic">今週の出荷なし</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>今週の出荷なし</div>
                 )}
               </Link>
             );
           })}
+          </div>
         </div>
       </section>
 
       {/* ── 3. 工場→拠点 出荷フロー（曜日×拠点テーブル）── */}
-      <section className="mb-8">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wide">
-            工場 → 拠点 出荷フロー
-          </h2>
-          <Link href="/inventory" className="text-xs text-brand-600 hover:underline">
-            在庫・積載計画を見る →
-          </Link>
-        </div>
+      <section className="mb-5">
+        <div className="sys-panel">
+          <div className="sys-section-header justify-between">
+            <span>工場 → 拠点 出荷フロー</span>
+            <Link href="/inventory" className="font-normal text-brand-500 hover:underline" style={{ fontSize: 11 }}>
+              在庫・積載計画を見る →
+            </Link>
+          </div>
 
-        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-0 p-3 gap-3">
           {factories.map((factory) => {
             const factoryPlans: DayWarehousePlan[] = weeklyPlans[factory.code] ?? [];
             if (factoryPlans.length === 0) return null;
 
-            // この工場に出荷がある拠点
             const whCodesWithPlan = [...new Set(
               factoryPlans.filter(p => p.trucks.length > 0).map(p => p.warehouseCode)
             )];
             const activeWarehouses = warehouses.filter(wh => whCodesWithPlan.includes(wh.code));
             if (activeWarehouses.length === 0) return null;
 
-            // 出荷がある曜日
             const daySet = new Set(
               factoryPlans.filter(p => p.trucks.length > 0).map(p => p.dayOfWeek)
             );
@@ -173,7 +199,6 @@ export default function DashboardPage() {
             const hasUnscheduled = daySet.has(-1);
             const allDays = [...activeDays, ...(hasUnscheduled ? [-1] : [])];
 
-            // lookup: warehouseCode → dayOfWeek → DayWarehousePlan
             const planMap: Record<string, Record<number, DayWarehousePlan>> = {};
             for (const plan of factoryPlans) {
               if (plan.trucks.length === 0) continue;
@@ -182,40 +207,50 @@ export default function DashboardPage() {
             }
 
             return (
-              <div key={factory.code} className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+              <div key={factory.code} style={{ border: '1px solid #c8d4df', borderRadius: 3, overflow: 'hidden' }}>
                 {/* 工場ヘッダ */}
-                <div className="px-4 py-3 bg-indigo-50 border-b border-indigo-100 flex items-center gap-2">
-                  <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">{factory.code}</span>
-                  <span className="text-sm font-semibold text-indigo-800">{factory.name}</span>
+                <div className="flex items-center gap-2 px-3 py-2"
+                  style={{ background: 'linear-gradient(180deg, #1e3f60 0%, #17324e 100%)', borderBottom: '1px solid #0c1f35' }}>
+                  <span className="font-bold px-2 py-0.5 rounded"
+                    style={{ fontSize: 10, background: 'rgba(255,255,255,0.15)', color: 'white', border: '1px solid rgba(255,255,255,0.2)' }}>
+                    {factory.code}
+                  </span>
+                  <span className="font-semibold text-white" style={{ fontSize: 13 }}>{factory.name}</span>
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginLeft: 4 }}>
+                    出荷拠点数: {activeWarehouses.length} / 曜日数: {allDays.filter(d => d >= 0).length}
+                  </span>
                 </div>
 
                 {/* 曜日×拠点テーブル */}
-                <div className="overflow-x-auto">
-                  <table className="text-xs w-full border-collapse">
+                <div className="overflow-x-auto" style={{ background: 'white' }}>
+                  <table className="w-full" style={{ borderCollapse: 'collapse', fontSize: 11 }}>
                     <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200">
-                        <th className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-left font-semibold text-slate-500 min-w-[140px] border-r border-slate-200">
+                      <tr style={{ background: 'linear-gradient(180deg, #e8eef5 0%, #dde6ef 100%)' }}>
+                        <th style={{ ...thStyle, textAlign: 'left', minWidth: 140, position: 'sticky', left: 0, zIndex: 10, background: '#e0e9f2' }}>
                           拠点
                         </th>
                         {allDays.map((day) => (
-                          <th key={day} className="px-3 py-2 text-center font-semibold text-slate-500 min-w-[170px]">
+                          <th key={day} style={{ ...thStyle, minWidth: 180, textAlign: 'center' }}>
                             {day === -1 ? '週間' : `${DAY_NAMES[day]}曜日`}
                           </th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {activeWarehouses.map((wh) => (
-                        <tr key={wh.code} className="border-t border-slate-100">
+                      {activeWarehouses.map((wh, ri) => (
+                        <tr key={wh.code} style={{ background: ri % 2 === 0 ? 'white' : '#f7f9fc' }}>
                           {/* 拠点名 (sticky) */}
-                          <td className="sticky left-0 z-10 bg-white px-3 py-2 border-r border-slate-200 align-middle">
-                            <div className="font-semibold text-slate-700">{wh.name}</div>
+                          <td style={{ ...tdStyle, position: 'sticky', left: 0, zIndex: 10,
+                            background: ri % 2 === 0 ? 'white' : '#f7f9fc', verticalAlign: 'middle', minWidth: 140 }}>
+                            <div className="font-semibold" style={{ color: '#1e3a5f', fontSize: 12 }}>{wh.name}</div>
                             <div className="flex items-center gap-1 mt-0.5">
-                              <span className={clsx(
-                                'text-[9px] font-bold px-1 py-0.5 rounded-full',
-                                wh.group === '東' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700',
-                              )}>{wh.group}</span>
-                              <span className="text-slate-400 font-mono">{wh.code}</span>
+                              <span style={{
+                                fontSize: 9, padding: '1px 5px', borderRadius: 2, fontWeight: 700,
+                                background: wh.group === '東' ? '#dbeafe' : '#fee2e2',
+                                color: wh.group === '東' ? '#1e40af' : '#b91c1c',
+                                border: `1px solid ${wh.group === '東' ? '#bfdbfe' : '#fecaca'}`,
+                              }}>{wh.group}</span>
+                              <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'monospace' }}>{wh.code}</span>
                             </div>
                           </td>
 
@@ -223,44 +258,48 @@ export default function DashboardPage() {
                           {allDays.map((day) => {
                             const plan = planMap[wh.code]?.[day];
                             return (
-                              <td key={day} className="px-2 py-2 align-top">
+                              <td key={day} style={{ ...tdStyle, verticalAlign: 'top', padding: '6px' }}>
                                 {!plan ? (
-                                  <span className="block text-center text-slate-200">—</span>
+                                  <span style={{ display: 'block', textAlign: 'center', color: '#cbd5e1' }}>—</span>
                                 ) : (
-                                  <div className="flex flex-col gap-1">
-                                    {/* トラック台数バッジ */}
-                                    <div className="text-[10px] font-semibold text-slate-500 mb-0.5">
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    <div style={{ fontSize: 10, fontWeight: 600, color: '#475569' }}>
                                       🚛 {plan.trucks.length}台
                                     </div>
                                     {plan.trucks.map((truck) => (
-                                      <div key={truck.truckIndex}
-                                        className="bg-slate-50 rounded border border-slate-200 p-1.5">
-                                        {/* トラックヘッダ */}
-                                        <div className="flex items-center justify-between mb-1">
-                                          <span className="font-bold text-slate-700">{truck.truckIndex}号車</span>
-                                          <span className={clsx(
-                                            'text-[10px] font-semibold px-1.5 py-0.5 rounded',
-                                            truck.totalPallets >= truck.maxPallets
-                                              ? 'bg-emerald-100 text-emerald-700'
-                                              : truck.totalPallets >= Math.ceil(truck.maxPallets * 0.6)
-                                                ? 'bg-amber-100 text-amber-700'
-                                                : 'bg-red-50 text-red-500',
-                                          )}>
+                                      <div key={truck.truckIndex} style={{
+                                        background: '#f0f4f8', border: '1px solid #c8d4df',
+                                        borderRadius: 3, padding: '5px 6px',
+                                      }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                          <span style={{ fontWeight: 700, fontSize: 11, color: '#1e3a5f' }}>{truck.truckIndex}号車</span>
+                                          <span style={{
+                                            fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 2,
+                                            background: truck.totalPallets >= truck.maxPallets ? '#dcfce7'
+                                              : truck.totalPallets >= Math.ceil(truck.maxPallets * 0.6) ? '#fef9c3' : '#fee2e2',
+                                            color: truck.totalPallets >= truck.maxPallets ? '#15803d'
+                                              : truck.totalPallets >= Math.ceil(truck.maxPallets * 0.6) ? '#92400e' : '#b91c1c',
+                                            border: `1px solid ${truck.totalPallets >= truck.maxPallets ? '#bbf7d0'
+                                              : truck.totalPallets >= Math.ceil(truck.maxPallets * 0.6) ? '#fde68a' : '#fecaca'}`,
+                                          }}>
                                             {truck.totalPallets}/{truck.maxPallets}枚
                                           </span>
                                         </div>
-                                        {/* 製品明細 */}
                                         {truck.items.map((item) => {
                                           const prod = products.find((p) => p.code === item.productCode);
                                           return (
-                                            <div key={item.productCode}
-                                              className="flex items-center gap-1 text-[10px] text-slate-600 leading-5">
-                                              <span className="w-2 h-2 rounded-sm shrink-0 border border-black/10"
-                                                style={{ background: prod?.color ?? '#ccc' }} />
-                                              <span className="font-medium truncate max-w-[70px]">
+                                            <div key={item.productCode} style={{
+                                              display: 'flex', alignItems: 'center', gap: 4,
+                                              fontSize: 10, color: '#475569', lineHeight: '18px',
+                                            }}>
+                                              <span style={{
+                                                width: 8, height: 8, borderRadius: 2, flexShrink: 0,
+                                                background: prod?.color ?? '#ccc', border: '1px solid rgba(0,0,0,0.12)',
+                                              }} />
+                                              <span style={{ fontWeight: 600, maxWidth: 70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                 {prod?.name ?? item.productCode}
                                               </span>
-                                              <span className="ml-auto text-slate-400 whitespace-nowrap">
+                                              <span style={{ marginLeft: 'auto', color: '#94a3b8', whiteSpace: 'nowrap' }}>
                                                 {item.qty.toLocaleString()}個&nbsp;/&nbsp;{item.pallets}枚
                                               </span>
                                             </div>
@@ -281,24 +320,23 @@ export default function DashboardPage() {
               </div>
             );
           })}
+          </div>
         </div>
       </section>
 
       {/* ── 4. 今週の生産計画（工場別タブ）── */}
-      <section className="mb-8">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wide">
-            今週の生産計画
-          </h2>
-          <Link href="/production" className="text-xs text-brand-600 hover:underline">
-            編集 →
-          </Link>
-        </div>
+      <section className="mb-5">
+        <div className="sys-panel">
+          <div className="sys-section-header justify-between">
+            <span>今週の生産計画</span>
+            <Link href="/production" className="font-normal text-brand-500 hover:underline" style={{ fontSize: 11 }}>
+              編集 →
+            </Link>
+          </div>
 
-        <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
           {/* 工場タブ */}
           {factoriesWithProducts.length > 1 && (
-            <div className="flex border-b border-slate-200 bg-slate-50">
+            <div className="flex" style={{ borderBottom: '1px solid #c8d4df', background: '#edf2f7' }}>
               {factoriesWithProducts.map((f) => {
                 const fQty = products
                   .filter((p) => (p.factoryCode ?? 'F001') === f.code)
@@ -307,34 +345,40 @@ export default function DashboardPage() {
                   <button
                     key={f.code}
                     onClick={() => setActiveFactoryTab(f.code)}
-                    className={clsx(
-                      'px-5 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2',
-                      currentFactoryTab === f.code
-                        ? 'border-brand-600 text-brand-600 bg-white'
-                        : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100',
-                    )}
+                    className="flex items-center gap-2 px-5 transition-colors"
+                    style={{
+                      height: 34, fontSize: 12, fontWeight: 600,
+                      borderBottom: currentFactoryTab === f.code ? '2px solid #1a3a5c' : '2px solid transparent',
+                      color: currentFactoryTab === f.code ? '#1a3a5c' : '#64748b',
+                      background: currentFactoryTab === f.code ? 'white' : 'transparent',
+                      marginBottom: -1,
+                    }}
                   >
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
+                    <span style={{
+                      fontSize: 9, padding: '1px 5px', borderRadius: 2, fontWeight: 700,
+                      background: '#dbeafe', color: '#1e40af', border: '1px solid #bfdbfe',
+                    }}>
                       {f.code}
                     </span>
                     {f.name}
                     {fQty > 0 && (
-                      <span className="text-[10px] text-slate-400 font-normal">
+                      <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 400 }}>
                         {fQty.toLocaleString()}個
                       </span>
                     )}
                   </button>
                 );
               })}
-              {/* 全工場合計タブ */}
               <button
                 onClick={() => setActiveFactoryTab('__all__')}
-                className={clsx(
-                  'px-5 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ml-auto',
-                  currentFactoryTab === '__all__'
-                    ? 'border-brand-600 text-brand-600 bg-white'
-                    : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-100',
-                )}
+                className="ml-auto px-5 transition-colors"
+                style={{
+                  height: 34, fontSize: 12, fontWeight: 600,
+                  borderBottom: currentFactoryTab === '__all__' ? '2px solid #1a3a5c' : '2px solid transparent',
+                  color: currentFactoryTab === '__all__' ? '#1a3a5c' : '#94a3b8',
+                  background: currentFactoryTab === '__all__' ? 'white' : 'transparent',
+                  marginBottom: -1,
+                }}
               >
                 全工場合計
               </button>
@@ -349,13 +393,13 @@ export default function DashboardPage() {
               : factoriesWithProducts.filter((f) => f.code === currentFactoryTab);
 
             return (
-              <table className="w-full text-sm">
+              <table className="sys-table">
                 <thead>
-                  <tr className="bg-slate-50 text-slate-500 text-xs border-b border-slate-200">
-                    <th className="px-4 py-2.5 text-left font-semibold">製品コード</th>
-                    <th className="px-4 py-2.5 text-left font-semibold">製品名</th>
-                    <th className="px-4 py-2.5 text-right font-semibold">週間生産数</th>
-                    <th className="px-4 py-2.5 text-right font-semibold">換算パレット</th>
+                  <tr>
+                    <th style={{ textAlign: 'left' }}>製品コード</th>
+                    <th style={{ textAlign: 'left' }}>製品名</th>
+                    <th style={{ textAlign: 'right' }}>週間生産数</th>
+                    <th style={{ textAlign: 'right' }}>換算パレット</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -371,56 +415,54 @@ export default function DashboardPage() {
 
                     return (
                       <>
-                        {/* 工場名ヘッダ（全工場表示時のみ） */}
                         {showAll && factoriesWithProducts.length > 1 && (
-                          <tr key={`fhdr-${factory.code}`} className="bg-indigo-50 border-t-2 border-indigo-100">
-                            <td colSpan={4} className="px-4 py-2">
+                          <tr key={`fhdr-${factory.code}`} style={{ background: '#e8eef5' }}>
+                            <td colSpan={4} style={{ padding: '6px 12px', border: '1px solid #c0cdd9' }}>
                               <div className="flex items-center gap-2">
-                                <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">
+                                <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 2, fontWeight: 700,
+                                  background: '#dbeafe', color: '#1e40af', border: '1px solid #bfdbfe' }}>
                                   {factory.code}
                                 </span>
-                                <span className="text-sm font-semibold text-indigo-800">{factory.name}</span>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: '#1e3a5f' }}>{factory.name}</span>
                               </div>
                             </td>
                           </tr>
                         )}
 
-                        {/* 製品行 */}
                         {factoryProducts.map((p) => {
                           const qty  = productionPlan[p.code] ?? 0;
                           const pals = qty > 0 ? Math.ceil(qty / p.capacityPerPallet) : 0;
                           return (
-                            <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
-                              <td className="px-4 py-2.5">
+                            <tr key={p.code}>
+                              <td>
                                 <div className="flex items-center gap-2">
                                   <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0"
                                     style={{ background: p.color }} />
-                                  <span className="font-mono text-xs text-slate-500">{p.code}</span>
+                                  <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#64748b' }}>{p.code}</span>
                                 </div>
                               </td>
-                              <td className="px-4 py-2.5 font-medium text-slate-700">{p.name}</td>
-                              <td className="px-4 py-2.5 text-right font-medium">
+                              <td style={{ fontWeight: 600, color: '#1e3a5f' }}>{p.name}</td>
+                              <td style={{ textAlign: 'right', fontWeight: 600 }}>
                                 {qty > 0
-                                  ? <span className="text-slate-800">{qty.toLocaleString()}個</span>
-                                  : <span className="text-slate-300">—</span>}
+                                  ? <span style={{ color: '#1e3a5f' }}>{qty.toLocaleString()}個</span>
+                                  : <span style={{ color: '#cbd5e1' }}>—</span>}
                               </td>
-                              <td className="px-4 py-2.5 text-right text-slate-500">
-                                {pals > 0 ? `${pals}枚` : <span className="text-slate-300">—</span>}
+                              <td style={{ textAlign: 'right', color: '#475569' }}>
+                                {pals > 0 ? `${pals}枚` : <span style={{ color: '#cbd5e1' }}>—</span>}
                               </td>
                             </tr>
                           );
                         })}
 
-                        {/* 工場小計（複数工場の場合） */}
                         {(showAll && factoriesWithProducts.length > 1) && (
-                          <tr key={`sub-${factory.code}`} className="border-t border-indigo-100 bg-indigo-50/60">
-                            <td colSpan={2} className="px-4 py-1.5 text-xs text-indigo-500 font-semibold">
+                          <tr key={`sub-${factory.code}`} style={{ background: '#eef4fb' }}>
+                            <td colSpan={2} style={{ padding: '4px 12px', fontSize: 11, fontWeight: 700, color: '#1e40af', border: '1px solid #c0cdd9' }}>
                               {factory.name} 小計
                             </td>
-                            <td className="px-4 py-1.5 text-right text-xs font-bold text-indigo-600">
+                            <td style={{ padding: '4px 10px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: '#1e40af', border: '1px solid #c0cdd9' }}>
                               {factoryQty.toLocaleString()}個
                             </td>
-                            <td className="px-4 py-1.5 text-right text-xs font-bold text-indigo-500">
+                            <td style={{ padding: '4px 10px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: '#1e40af', border: '1px solid #c0cdd9' }}>
                               {factoryPals}枚
                             </td>
                           </tr>
@@ -430,14 +472,14 @@ export default function DashboardPage() {
                   })}
 
                   {/* 合計行 */}
-                  <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold">
-                    <td colSpan={2} className="px-4 py-2.5 text-slate-600">
+                  <tr style={{ background: '#e8eef5', fontWeight: 700 }}>
+                    <td colSpan={2} style={{ padding: '7px 12px', fontSize: 12, color: '#1e3a5f', border: '1px solid #b0bec9' }}>
                       {showAll && factoriesWithProducts.length > 1 ? '総合計' : (() => {
                         const f = factoriesWithProducts.find((f) => f.code === currentFactoryTab);
                         return f ? `${f.name} 合計` : '合計';
                       })()}
                     </td>
-                    <td className="px-4 py-2.5 text-right text-brand-600">
+                    <td style={{ padding: '7px 10px', textAlign: 'right', fontSize: 12, color: '#1a3a5c', border: '1px solid #b0bec9' }}>
                       {(showAll
                         ? totalProductQty
                         : products
@@ -445,7 +487,7 @@ export default function DashboardPage() {
                             .reduce((s, p) => s + (productionPlan[p.code] ?? 0), 0)
                       ).toLocaleString()}個
                     </td>
-                    <td className="px-4 py-2.5 text-right text-slate-500">
+                    <td style={{ padding: '7px 10px', textAlign: 'right', fontSize: 12, color: '#475569', border: '1px solid #b0bec9' }}>
                       {(showAll
                         ? products.reduce((s, p) => {
                             const qty = productionPlan[p.code] ?? 0;

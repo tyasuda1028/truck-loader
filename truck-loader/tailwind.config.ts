@@ -10,11 +10,22 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          50:  '#f0f4fa',
-          100: '#d9e4f5',
-          500: '#2c5282',
+          50:  '#eef4fb',
+          100: '#d4e4f4',
+          200: '#a8c9e8',
+          300: '#7baedd',
+          400: '#4e93d1',
+          500: '#2563a8',
           600: '#1a3a5c',
           700: '#132d47',
+          800: '#0c1f35',
+        },
+        sys: {
+          header:  '#0c1f35',
+          nav:     '#17324e',
+          panel:   '#f0f4f8',
+          border:  '#c8d4df',
+          text:    '#2c4a68',
         },
       },
       fontFamily: {
@@ -24,6 +35,9 @@ const config: Config = {
           '"Yu Gothic"',
           'sans-serif',
         ],
+      },
+      fontSize: {
+        '2xs': ['10px', '14px'],
       },
     },
   },

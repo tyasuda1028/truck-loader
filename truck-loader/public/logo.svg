@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 48" fill="none">
+  <!-- Emblem mark -->
+  <rect x="4" y="4" width="40" height="40" rx="6" fill="#1a3a5c"/>
+  <!-- Hexagon shape -->
+  <path d="M24 10 L36 17 L36 31 L24 38 L12 31 L12 17 Z" stroke="white" stroke-width="1.8" fill="none"/>
+  <!-- Inner triangle/arrow suggesting logistics/movement -->
+  <path d="M18 24 L24 18 L30 24 L24 30 Z" fill="white" opacity="0.9"/>
+  <!-- Company name text area -->
+  <text x="52" y="20" font-family="Hiragino Kaku Gothic Pro, Meiryo, sans-serif" font-size="14" font-weight="700" fill="#1a3a5c" letter-spacing="1">株式会社○○</text>
+  <text x="52" y="36" font-family="Arial, sans-serif" font-size="9" fill="#6b7280" letter-spacing="2">YOUR COMPANY</text>
+</svg>
