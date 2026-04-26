@@ -3,13 +3,15 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useAppStore } from '@/lib/store';
-import { calcAllPlans, calcSendQty, fillRate } from '@/lib/calculations';
+import { calcAllPlans, calcSendQty, fillRate, calcWeeklyPlans } from '@/lib/calculations';
+import type { DayWarehousePlan } from '@/lib/types';
 import clsx from 'clsx';
 
 export default function DashboardPage() {
   const {
     factories, products, warehouses, truckTypes,
     productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales,
+    weeklyShippingSchedule,
   } = useAppStore();
 
   const [activeFactoryTab, setActiveFactoryTab] = useState<string>('');
@@ -23,6 +25,13 @@ export default function DashboardPage() {
     () => calcSendQty(products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales),
     [products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales],
   );
+
+  const weeklyPlans = useMemo(
+    () => calcWeeklyPlans(warehouses, products, truckTypes, factories, productionPlan, distributionRatios, inventoryStock, locationStock, weeklyShippingSchedule, inTransitStock, plannedSales),
+    [warehouses, products, truckTypes, factories, productionPlan, distributionRatios, inventoryStock, locationStock, weeklyShippingSchedule, inTransitStock, plannedSales],
+  );
+
+  const DAY_NAMES = ['月', '火', '水', '木', '金', '土', '日'];
 
   const truckMap = Object.fromEntries(truckTypes.map((t) => [t.code, t]));
 
@@ -133,7 +142,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* ── 3. 工場→拠点 出荷フロー ── */}
+      {/* ── 3. 工場→拠点 出荷フロー（曜日×拠点テーブル）── */}
       <section className="mb-8">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wide">
@@ -144,111 +153,131 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-6">
           {factories.map((factory) => {
-            const factoryProducts = products.filter(
-              (p) => (p.factoryCode ?? 'F001') === factory.code,
-            );
-            if (factoryProducts.length === 0) return null;
+            const factoryPlans: DayWarehousePlan[] = weeklyPlans[factory.code] ?? [];
+            if (factoryPlans.length === 0) return null;
 
-            // この工場から各拠点への送り数合計
-            const whTotals = warehouses
-              .map((wh) => ({
-                wh,
-                qty: factoryProducts.reduce((s, p) => s + (sendQty[p.code]?.[wh.code] ?? 0), 0),
-              }))
-              .filter(({ qty }) => qty > 0);
+            // この工場に出荷がある拠点
+            const whCodesWithPlan = [...new Set(
+              factoryPlans.filter(p => p.trucks.length > 0).map(p => p.warehouseCode)
+            )];
+            const activeWarehouses = warehouses.filter(wh => whCodesWithPlan.includes(wh.code));
+            if (activeWarehouses.length === 0) return null;
+
+            // 出荷がある曜日
+            const daySet = new Set(
+              factoryPlans.filter(p => p.trucks.length > 0).map(p => p.dayOfWeek)
+            );
+            const activeDays = [...daySet].filter(d => d >= 0).sort((a, b) => a - b);
+            const hasUnscheduled = daySet.has(-1);
+            const allDays = [...activeDays, ...(hasUnscheduled ? [-1] : [])];
+
+            // lookup: warehouseCode → dayOfWeek → DayWarehousePlan
+            const planMap: Record<string, Record<number, DayWarehousePlan>> = {};
+            for (const plan of factoryPlans) {
+              if (plan.trucks.length === 0) continue;
+              if (!planMap[plan.warehouseCode]) planMap[plan.warehouseCode] = {};
+              planMap[plan.warehouseCode][plan.dayOfWeek] = plan;
+            }
 
             return (
               <div key={factory.code} className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
                 {/* 工場ヘッダ */}
-                <div className="flex items-center justify-between px-4 py-3 bg-indigo-50 border-b border-indigo-100">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">{factory.code}</span>
-                    <span className="text-sm font-semibold text-indigo-800">{factory.name}</span>
-                  </div>
-                  {whTotals.length > 0 ? (
-                    <div className="flex items-center gap-2 flex-wrap justify-end">
-                      {whTotals.map(({ wh, qty }) => (
-                        <span key={wh.code}
-                          className="text-xs px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold flex items-center gap-1">
-                          <span className={clsx(
-                            'text-[9px] font-bold px-1 py-0.5 rounded-full',
-                            wh.group === '東' ? 'bg-blue-200 text-blue-700' : 'bg-red-200 text-red-700',
-                          )}>{wh.group}</span>
-                          {wh.name}
-                          <span className="text-emerald-600">{qty.toLocaleString()}個</span>
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="text-xs text-slate-400 italic">今週の出荷なし</span>
-                  )}
+                <div className="px-4 py-3 bg-indigo-50 border-b border-indigo-100 flex items-center gap-2">
+                  <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">{factory.code}</span>
+                  <span className="text-sm font-semibold text-indigo-800">{factory.name}</span>
                 </div>
 
-                {/* 製品×拠点 内訳テーブル */}
-                {whTotals.length > 0 && (
-                  <div className="overflow-x-auto">
-                    <table className="text-xs w-full border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-100">
-                          <th className="px-4 py-2 text-left font-semibold text-slate-500 w-40">製品</th>
-                          {whTotals.map(({ wh }) => (
-                            <th key={wh.code} className="px-3 py-2 text-center font-semibold text-slate-500 min-w-[80px]">
+                {/* 曜日×拠点テーブル */}
+                <div className="overflow-x-auto">
+                  <table className="text-xs w-full border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        <th className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-left font-semibold text-slate-500 min-w-[140px] border-r border-slate-200">
+                          拠点
+                        </th>
+                        {allDays.map((day) => (
+                          <th key={day} className="px-3 py-2 text-center font-semibold text-slate-500 min-w-[170px]">
+                            {day === -1 ? '週間' : `${DAY_NAMES[day]}曜日`}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeWarehouses.map((wh) => (
+                        <tr key={wh.code} className="border-t border-slate-100">
+                          {/* 拠点名 (sticky) */}
+                          <td className="sticky left-0 z-10 bg-white px-3 py-2 border-r border-slate-200 align-middle">
+                            <div className="font-semibold text-slate-700">{wh.name}</div>
+                            <div className="flex items-center gap-1 mt-0.5">
                               <span className={clsx(
-                                'text-[9px] font-bold px-1 py-0.5 rounded-full mr-0.5',
+                                'text-[9px] font-bold px-1 py-0.5 rounded-full',
                                 wh.group === '東' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700',
                               )}>{wh.group}</span>
-                              {wh.name}
-                            </th>
-                          ))}
-                          <th className="px-3 py-2 text-right font-semibold text-slate-500 min-w-[80px]">合計</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {factoryProducts.map((p) => {
-                          const rowTotal = whTotals.reduce((s, { wh }) => s + (sendQty[p.code]?.[wh.code] ?? 0), 0);
-                          if (rowTotal === 0) return null;
-                          return (
-                            <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
-                              <td className="px-4 py-2">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
-                                  <span className="font-medium text-slate-700">{p.name}</span>
-                                </div>
-                              </td>
-                              {whTotals.map(({ wh }) => {
-                                const qty = sendQty[p.code]?.[wh.code] ?? 0;
-                                return (
-                                  <td key={wh.code} className="px-3 py-2 text-center">
-                                    {qty > 0
-                                      ? <span className="font-semibold text-emerald-700">{qty.toLocaleString()}個</span>
-                                      : <span className="text-slate-200">—</span>}
-                                  </td>
-                                );
-                              })}
-                              <td className="px-3 py-2 text-right font-bold text-slate-700">
-                                {rowTotal.toLocaleString()}個
-                              </td>
-                            </tr>
-                          );
-                        })}
-                        {/* 拠点合計行 */}
-                        <tr className="border-t-2 border-slate-200 bg-slate-50">
-                          <td className="px-4 py-2 font-semibold text-slate-500">拠点合計</td>
-                          {whTotals.map(({ wh, qty }) => (
-                            <td key={wh.code} className="px-3 py-2 text-center font-bold text-emerald-600">
-                              {qty.toLocaleString()}個
-                            </td>
-                          ))}
-                          <td className="px-3 py-2 text-right font-bold text-brand-600">
-                            {whTotals.reduce((s, { qty }) => s + qty, 0).toLocaleString()}個
+                              <span className="text-slate-400 font-mono">{wh.code}</span>
+                            </div>
                           </td>
+
+                          {/* 曜日ごとのセル */}
+                          {allDays.map((day) => {
+                            const plan = planMap[wh.code]?.[day];
+                            return (
+                              <td key={day} className="px-2 py-2 align-top">
+                                {!plan ? (
+                                  <span className="block text-center text-slate-200">—</span>
+                                ) : (
+                                  <div className="flex flex-col gap-1">
+                                    {/* トラック台数バッジ */}
+                                    <div className="text-[10px] font-semibold text-slate-500 mb-0.5">
+                                      🚛 {plan.trucks.length}台
+                                    </div>
+                                    {plan.trucks.map((truck) => (
+                                      <div key={truck.truckIndex}
+                                        className="bg-slate-50 rounded border border-slate-200 p-1.5">
+                                        {/* トラックヘッダ */}
+                                        <div className="flex items-center justify-between mb-1">
+                                          <span className="font-bold text-slate-700">{truck.truckIndex}号車</span>
+                                          <span className={clsx(
+                                            'text-[10px] font-semibold px-1.5 py-0.5 rounded',
+                                            truck.totalPallets >= truck.maxPallets
+                                              ? 'bg-emerald-100 text-emerald-700'
+                                              : truck.totalPallets >= Math.ceil(truck.maxPallets * 0.6)
+                                                ? 'bg-amber-100 text-amber-700'
+                                                : 'bg-red-50 text-red-500',
+                                          )}>
+                                            {truck.totalPallets}/{truck.maxPallets}枚
+                                          </span>
+                                        </div>
+                                        {/* 製品明細 */}
+                                        {truck.items.map((item) => {
+                                          const prod = products.find((p) => p.code === item.productCode);
+                                          return (
+                                            <div key={item.productCode}
+                                              className="flex items-center gap-1 text-[10px] text-slate-600 leading-5">
+                                              <span className="w-2 h-2 rounded-sm shrink-0 border border-black/10"
+                                                style={{ background: prod?.color ?? '#ccc' }} />
+                                              <span className="font-medium truncate max-w-[70px]">
+                                                {prod?.name ?? item.productCode}
+                                              </span>
+                                              <span className="ml-auto text-slate-400 whitespace-nowrap">
+                                                {item.qty.toLocaleString()}個&nbsp;/&nbsp;{item.pallets}枚
+                                              </span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </td>
+                            );
+                          })}
                         </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             );
           })}
