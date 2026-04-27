@@ -127,7 +127,7 @@ export default function LoadingPlanInner() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-56px)] overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-68px)] overflow-hidden">
 
       {/* ── 出荷確定バー ── */}
       <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between shrink-0">
