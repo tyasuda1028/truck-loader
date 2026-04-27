@@ -493,7 +493,7 @@ export default function ProductionPage() {
                 <thead>
                   <tr className="bg-slate-50">
                     <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
-                    {activeWarehouses.map((wh) => (
+                    {warehouses.map((wh) => (
                       <th key={wh.code} className="px-2 py-2.5 text-center font-semibold text-slate-500 min-w-[80px]">
                         <div className="font-bold text-slate-400">{wh.code}</div>
                         <div className="text-[10px] text-slate-500 leading-tight">{wh.name.slice(0, 5)}</div>
@@ -510,9 +510,7 @@ export default function ProductionPage() {
                           <span className="font-medium text-slate-700">{p.name}</span>
                         </div>
                       </td>
-                      {activeWarehouses.map((wh) => {
-                        const ratio = distributionRatios[p.code]?.[wh.code] ?? 0;
-                        if (ratio === 0) return <td key={wh.code} className="px-1 py-1.5 text-center text-slate-300">—</td>;
+                      {warehouses.map((wh) => {
                         const stock = locationStock[p.code]?.[wh.code] ?? 0;
                         return (
                           <td key={wh.code} className="px-1 py-1.5 text-center">
@@ -689,7 +687,7 @@ export default function ProductionPage() {
                 <thead>
                   <tr className="bg-slate-50">
                     <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
-                    {activeWarehouses.map((wh) => (
+                    {warehouses.map((wh) => (
                       <th key={wh.code} className="px-2 py-2.5 text-center font-semibold text-slate-500 min-w-[80px]">
                         <div className="font-bold text-slate-400">{wh.code}</div>
                         <div className="text-[10px] text-slate-500 leading-tight">{wh.name.slice(0, 5)}</div>
@@ -700,7 +698,7 @@ export default function ProductionPage() {
                 </thead>
                 <tbody>
                   {products.map((p) => {
-                    const rowTotal = activeWarehouses.reduce((s, wh) => s + (inTransitStock[p.code]?.[wh.code] ?? 0), 0);
+                    const rowTotal = warehouses.reduce((s, wh) => s + (inTransitStock[p.code]?.[wh.code] ?? 0), 0);
                     return (
                       <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
                         <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200">
@@ -709,9 +707,7 @@ export default function ProductionPage() {
                             <span className="font-medium text-slate-700">{p.name}</span>
                           </div>
                         </td>
-                        {activeWarehouses.map((wh) => {
-                          const ratio = distributionRatios[p.code]?.[wh.code] ?? 0;
-                          if (ratio === 0) return <td key={wh.code} className="px-1 py-1.5 text-center text-slate-300">—</td>;
+                        {warehouses.map((wh) => {
                           const qty = inTransitStock[p.code]?.[wh.code] ?? 0;
                           return (
                             <td key={wh.code} className="px-1 py-1.5 text-center">
@@ -734,7 +730,7 @@ export default function ProductionPage() {
                   })}
                   <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold">
                     <td className="px-3 py-2 sticky left-0 bg-slate-50 border-r border-slate-200 text-slate-600">合計</td>
-                    {activeWarehouses.map((wh) => {
+                    {warehouses.map((wh) => {
                       const total = products.reduce((s, p) => s + (inTransitStock[p.code]?.[wh.code] ?? 0), 0);
                       return (
                         <td key={wh.code} className="px-2 py-2 text-center text-amber-600">
@@ -743,8 +739,8 @@ export default function ProductionPage() {
                       );
                     })}
                     <td className="px-3 py-2 text-right text-amber-600">
-                      {products.reduce((s, p) => s + activeWarehouses.reduce((ss, wh) => ss + (inTransitStock[p.code]?.[wh.code] ?? 0), 0), 0) > 0
-                        ? `${products.reduce((s, p) => s + activeWarehouses.reduce((ss, wh) => ss + (inTransitStock[p.code]?.[wh.code] ?? 0), 0), 0).toLocaleString()}個`
+                      {products.reduce((s, p) => s + warehouses.reduce((ss, wh) => ss + (inTransitStock[p.code]?.[wh.code] ?? 0), 0), 0) > 0
+                        ? `${products.reduce((s, p) => s + warehouses.reduce((ss, wh) => ss + (inTransitStock[p.code]?.[wh.code] ?? 0), 0), 0).toLocaleString()}個`
                         : '—'}
                     </td>
                   </tr>
@@ -863,7 +859,7 @@ export default function ProductionPage() {
                 <thead>
                   <tr className="bg-slate-50">
                     <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
-                    {activeWarehouses.map((wh) => (
+                    {warehouses.map((wh) => (
                       <th key={wh.code} className="px-2 py-2.5 text-center font-semibold text-slate-500 min-w-[80px]">
                         <div className="font-bold text-slate-400">{wh.code}</div>
                         <div className="text-[10px] text-slate-500 leading-tight">{wh.name.slice(0, 5)}</div>
@@ -880,9 +876,7 @@ export default function ProductionPage() {
                           <span className="font-medium text-slate-700">{p.name}</span>
                         </div>
                       </td>
-                      {activeWarehouses.map((wh) => {
-                        const ratio = distributionRatios[p.code]?.[wh.code] ?? 0;
-                        if (ratio === 0) return <td key={wh.code} className="px-1 py-1.5 text-center text-slate-300">—</td>;
+                      {warehouses.map((wh) => {
                         const qty = plannedSales[p.code]?.[wh.code] ?? 0;
                         return (
                           <td key={wh.code} className="px-1 py-1.5 text-center">
@@ -1021,7 +1015,7 @@ export default function ProductionPage() {
                 <thead>
                   <tr className="bg-slate-50">
                     <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
-                    {activeWarehouses.map((wh) => (
+                    {warehouses.map((wh) => (
                       <th key={wh.code} className="px-2 py-2.5 text-center font-semibold text-slate-500 min-w-[70px]">
                         <div className="font-bold text-slate-400">{wh.code}</div>
                         <div className="text-[10px] text-slate-500 leading-tight">{wh.name.slice(0, 5)}</div>
@@ -1032,7 +1026,7 @@ export default function ProductionPage() {
                 </thead>
                 <tbody>
                   {products.map((p) => {
-                    const rowTotal = activeWarehouses.reduce(
+                    const rowTotal = warehouses.reduce(
                       (s, wh) => s + (distributionRatios[p.code]?.[wh.code] ?? 0), 0,
                     );
                     const isOver = rowTotal > 100;
@@ -1044,7 +1038,7 @@ export default function ProductionPage() {
                             <span className="font-medium text-slate-700">{p.name}</span>
                           </div>
                         </td>
-                        {activeWarehouses.map((wh) => {
+                        {warehouses.map((wh) => {
                           const ratio = distributionRatios[p.code]?.[wh.code] ?? 0;
                           return (
                             <td key={wh.code} className="px-1 py-1.5 text-center">
