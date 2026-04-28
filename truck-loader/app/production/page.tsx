@@ -495,7 +495,8 @@ export default function ProductionPage() {
               <table className="text-xs border-collapse w-full">
                 <thead>
                   <tr className="bg-slate-50">
-                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
                     {warehouses.map((wh) => (
                       <th key={wh.code} className="px-2 py-2.5 text-center font-semibold text-slate-500 min-w-[80px]">
                         <div className="font-bold text-slate-400">{wh.code}</div>
@@ -507,7 +508,8 @@ export default function ProductionPage() {
                 <tbody>
                   {products.map((p) => (
                     <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
-                      <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200">
+                      <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
+                      <td className="px-3 py-1.5 sticky left-32 bg-white z-10 border-r border-slate-200">
                         <div className="flex items-center gap-1.5">
                           <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
                           <span className="font-medium text-slate-700">{p.name}</span>
@@ -691,7 +693,8 @@ export default function ProductionPage() {
               <table className="text-xs border-collapse w-full">
                 <thead>
                   <tr className="bg-slate-50">
-                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
                     {warehouses.map((wh) => (
                       <th key={wh.code} className="px-2 py-2.5 text-center font-semibold text-slate-500 min-w-[80px]">
                         <div className="font-bold text-slate-400">{wh.code}</div>
@@ -706,7 +709,8 @@ export default function ProductionPage() {
                     const rowTotal = warehouses.reduce((s, wh) => s + (inTransitStock[p.code]?.[wh.code] ?? 0), 0);
                     return (
                       <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
-                        <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200">
+                        <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
+                        <td className="px-3 py-1.5 sticky left-32 bg-white z-10 border-r border-slate-200">
                           <div className="flex items-center gap-1.5">
                             <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
                             <span className="font-medium text-slate-700">{p.name}</span>
@@ -865,7 +869,8 @@ export default function ProductionPage() {
               <table className="text-xs border-collapse w-full">
                 <thead>
                   <tr className="bg-slate-50">
-                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
                     {warehouses.map((wh) => (
                       <th key={wh.code} className="px-2 py-2.5 text-center font-semibold text-slate-500 min-w-[80px]">
                         <div className="font-bold text-slate-400">{wh.code}</div>
@@ -877,7 +882,8 @@ export default function ProductionPage() {
                 <tbody>
                   {products.map((p) => (
                     <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
-                      <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200">
+                      <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
+                      <td className="px-3 py-1.5 sticky left-32 bg-white z-10 border-r border-slate-200">
                         <div className="flex items-center gap-1.5">
                           <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
                           <span className="font-medium text-slate-700">{p.name}</span>
@@ -1023,7 +1029,8 @@ export default function ProductionPage() {
               <table className="text-xs border-collapse w-full">
                 <thead>
                   <tr className="bg-slate-50">
-                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
                     {warehouses.map((wh) => (
                       <th key={wh.code} className="px-2 py-2.5 text-center font-semibold text-slate-500 min-w-[70px]">
                         <div className="font-bold text-slate-400">{wh.code}</div>
@@ -1041,7 +1048,8 @@ export default function ProductionPage() {
                     const isOver = rowTotal > 100;
                     return (
                       <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
-                        <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200">
+                        <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
+                        <td className="px-3 py-1.5 sticky left-32 bg-white z-10 border-r border-slate-200">
                           <div className="flex items-center gap-1.5">
                             <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
                             <span className="font-medium text-slate-700">{p.name}</span>
