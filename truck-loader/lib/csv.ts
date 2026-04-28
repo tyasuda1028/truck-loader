@@ -21,6 +21,27 @@ function parseCSVLine(line: string): string[] {
   return result;
 }
 
+/**
+ * 製品コードを正規化する：
+ *   - NFKC 正規化（全角数字/英字 → 半角）
+ *   - 前後空白除去・先頭BOM除去
+ *   - 科学記法（例：1.06E+09）が安全な整数に復元できれば整数文字列に戻す
+ *
+ * CSVとマスタの突合せ時は両側に通すことで、Excelによる自動変換やコピペ時の
+ * 文字種ゆれを吸収する。
+ */
+function normalizeProductCode(s: string): string {
+  if (!s) return '';
+  let v = s.normalize('NFKC').trim().replace(/^﻿/, '');
+  if (/^-?\d+(\.\d+)?[eE][+-]?\d+$/.test(v)) {
+    const n = Number(v);
+    if (Number.isInteger(n) && Math.abs(n) < Number.MAX_SAFE_INTEGER) {
+      v = String(n);
+    }
+  }
+  return v;
+}
+
 /** 日付文字列を YYYY-MM-DD に正規化。非日付なら null */
 function normalizeDate(raw: string, defaultYear?: number): string | null {
   const s = raw.trim();
@@ -74,7 +95,7 @@ export function parseProductionCSV(
   rows: { code: string; name: string; dailyQty: number[]; total: number; found: boolean }[];
   warnings: string[];
 } {
-  const productMap = Object.fromEntries(products.map((p) => [p.code, p]));
+  const productMap = Object.fromEntries(products.map((p) => [normalizeProductCode(p.code), p]));
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
 
   const warnings: string[] = [];
@@ -127,7 +148,7 @@ export function parseProductionCSV(
 
   for (let r = 1; r < lines.length; r++) {
     const cells = parseCSVLine(lines[r]);
-    const code = cells[0]?.trim();
+    const code = normalizeProductCode(cells[0] ?? '');
     if (!code) continue;
 
     const found = !!productMap[code];
@@ -173,7 +194,7 @@ export function parseInventoryCSV(
   rows: { code: string; name: string; qty: number; found: boolean }[];
   warnings: string[];
 } {
-  const productMap = Object.fromEntries(products.map((p) => [p.code, p]));
+  const productMap = Object.fromEntries(products.map((p) => [normalizeProductCode(p.code), p]));
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
 
   const warnings: string[] = [];
@@ -191,7 +212,7 @@ export function parseInventoryCSV(
 
   for (let r = 1; r < lines.length; r++) {
     const cells = parseCSVLine(lines[r]);
-    const code = cells[0]?.trim();
+    const code = normalizeProductCode(cells[0] ?? '');
     if (!code) continue;
 
     const found = !!productMap[code];
@@ -302,7 +323,7 @@ export function parseProductsCSV(
   warnings: string[];
 } {
   const palletCodes = new Set(palletTypes.map((p) => p.code));
-  const existingMap = Object.fromEntries(existingProducts.map((p) => [p.code, p]));
+  const existingMap = Object.fromEntries(existingProducts.map((p) => [normalizeProductCode(p.code), p]));
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
 
   const warnings: string[] = [];
@@ -341,7 +362,7 @@ export function parseProductsCSV(
 
   for (let r = 1; r < lines.length; r++) {
     const cells = parseCSVLine(lines[r]);
-    const code = getCell(cells, 'code') ?? '';
+    const code = normalizeProductCode(getCell(cells, 'code') ?? '');
     if (!code) continue;
 
     const existing = existingMap[code];
@@ -536,7 +557,7 @@ export function parseLocationStockCSV(
   rows: { code: string; name: string; whQty: Record<string, number>; found: boolean }[];
   warnings: string[];
 } {
-  const productMap = Object.fromEntries(products.map((p) => [p.code, p]));
+  const productMap = Object.fromEntries(products.map((p) => [normalizeProductCode(p.code), p]));
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
 
   const warnings: string[] = [];
@@ -565,7 +586,7 @@ export function parseLocationStockCSV(
 
   for (let r = 1; r < lines.length; r++) {
     const cells = parseCSVLine(lines[r]);
-    const code = cells[codeColIdx]?.trim();
+    const code = normalizeProductCode(cells[codeColIdx] ?? '');
     if (!code) continue;
 
     const found = !!productMap[code];
@@ -626,7 +647,7 @@ export function parsePlannedSalesCSV(
   rows: { code: string; name: string; whQty: Record<string, number>; found: boolean }[];
   warnings: string[];
 } {
-  const productMap = Object.fromEntries(products.map((p) => [p.code, p]));
+  const productMap = Object.fromEntries(products.map((p) => [normalizeProductCode(p.code), p]));
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
 
   const warnings: string[] = [];
@@ -655,7 +676,7 @@ export function parsePlannedSalesCSV(
 
   for (let r = 1; r < lines.length; r++) {
     const cells = parseCSVLine(lines[r]);
-    const code = cells[codeColIdx]?.trim();
+    const code = normalizeProductCode(cells[codeColIdx] ?? '');
     if (!code) continue;
 
     const found = !!productMap[code];
@@ -713,7 +734,7 @@ export function parseInTransitStockCSV(
   rows: { code: string; name: string; whQty: Record<string, number>; found: boolean }[];
   warnings: string[];
 } {
-  const productMap = Object.fromEntries(products.map((p) => [p.code, p]));
+  const productMap = Object.fromEntries(products.map((p) => [normalizeProductCode(p.code), p]));
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
 
   const warnings: string[] = [];
@@ -741,7 +762,7 @@ export function parseInTransitStockCSV(
 
   for (let r = 1; r < lines.length; r++) {
     const cells = parseCSVLine(lines[r]);
-    const code = cells[codeColIdx]?.trim();
+    const code = normalizeProductCode(cells[codeColIdx] ?? '');
     if (!code) continue;
 
     const found = !!productMap[code];
@@ -800,7 +821,7 @@ export function parseDistributionRatiosCSV(
   rows: { code: string; name: string; whRatio: Record<string, number>; found: boolean }[];
   warnings: string[];
 } {
-  const productMap = Object.fromEntries(products.map((p) => [p.code, p]));
+  const productMap = Object.fromEntries(products.map((p) => [normalizeProductCode(p.code), p]));
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
 
   const warnings: string[] = [];
@@ -828,7 +849,7 @@ export function parseDistributionRatiosCSV(
 
   for (let r = 1; r < lines.length; r++) {
     const cells = parseCSVLine(lines[r]);
-    const code = cells[codeColIdx]?.trim();
+    const code = normalizeProductCode(cells[codeColIdx] ?? '');
     if (!code) continue;
 
     const found = !!productMap[code];
