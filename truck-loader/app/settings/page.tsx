@@ -261,8 +261,11 @@ export default function SettingsPage() {
               {/* フォーマット説明 */}
               <div className="mb-3 text-xs text-slate-500 bg-white border border-slate-200 rounded p-2">
                 <span className="font-medium">フォーマット：</span>
-                <code className="ml-1 text-slate-700">製品コード, 製品名, 個/枚, パレット型, カラー(hex)</code>
-                <span className="ml-2 text-slate-400">※カラー列は省略可</span>
+                <code className="ml-1 text-slate-700">製品コード, 製品名, 個/枚, パレット型, カラー(hex), 製造工場, 器具区分, 器具名, ポジ, 仕向け, 生産方式</code>
+                <div className="mt-1 text-slate-400">
+                  ※ ポジは <code className="text-slate-600">○</code>（または true / 1 / yes）で true、空欄で false。
+                  CSVに含まれない列は既存値が保持されます（後方互換）。
+                </div>
               </div>
 
               {/* ファイル選択 */}

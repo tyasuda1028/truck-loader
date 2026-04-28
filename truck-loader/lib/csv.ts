@@ -209,12 +209,20 @@ const DEFAULT_COLORS = [
   '#3498DB','#27AE60','#D35400','#8E44AD',
 ];
 
+/** ポジ列の値を真偽値に正規化（○/true/1/yes を true として扱う、大文字小文字無視） */
+function parsePoji(raw: string | undefined): boolean {
+  const s = (raw ?? '').trim().toLowerCase();
+  return s === '○' || s === 'true' || s === '1' || s === 'yes';
+}
+
 /**
  * 製品マスタ CSV を解析する。
  *
- * フォーマット（1行目ヘッダ）:
- *   製品コード, 製品名, 個/枚, パレット型, カラー(hex)
+ * フォーマット（1行目ヘッダ・全11列）:
+ *   製品コード, 製品名, 個/枚, パレット型, カラー(hex),
+ *   製造工場, 器具区分, 器具名, ポジ, 仕向け, 生産方式
  *
+ * 後方互換：列が少ないCSVも受け付ける。CSVに無い列は既存値を保持する。
  * カラー列は省略可（省略時はデフォルト色を自動割り当て）。
  */
 export function parseProductsCSV(
@@ -237,8 +245,15 @@ export function parseProductsCSV(
   }
 
   const headers = parseCSVLine(lines[0]);
-  // カラー列があるか（5列以上ならあり）
-  const hasColor = headers.length >= 5;
+  const colCount = headers.length;
+  // どの列が CSV に含まれているか（含まれない列は既存値を保持）
+  const hasColor = colCount >= 5;
+  const hasFactory = colCount >= 6;
+  const hasEquipCat = colCount >= 7;
+  const hasEquipName = colCount >= 8;
+  const hasPoji = colCount >= 9;
+  const hasDestination = colCount >= 10;
+  const hasMethod = colCount >= 11;
 
   const products: Product[] = [];
   const rows: { product: Product; isNew: boolean; warnings: string[] }[] = [];
@@ -249,7 +264,9 @@ export function parseProductsCSV(
     const code = cells[0]?.trim();
     if (!code) continue;
 
+    const existing = existingMap[code];
     const rowWarnings: string[] = [];
+
     const name = cells[1]?.trim() ?? '';
     if (!name) rowWarnings.push('製品名が空です');
 
@@ -263,21 +280,46 @@ export function parseProductsCSV(
 
     let color = hasColor ? cells[4]?.trim() : '';
     if (!color || !/^#[0-9A-Fa-f]{6}$/.test(color)) {
-      // 既存製品の色を引き継ぐか、デフォルト色を順番に割り当て
-      color = existingMap[code]?.color ?? DEFAULT_COLORS[colorIdx % DEFAULT_COLORS.length];
+      color = existing?.color ?? DEFAULT_COLORS[colorIdx % DEFAULT_COLORS.length];
       colorIdx++;
     }
 
+    // オプショナル列：CSVに列があれば値を採用（空セルはクリアと解釈）、無ければ既存値を保持
+    const factoryCode = hasFactory
+      ? (cells[5]?.trim() || existing?.factoryCode || 'F001')
+      : (existing?.factoryCode ?? 'F001');
+    const equipmentCategory = hasEquipCat
+      ? (cells[6]?.trim() ?? '')
+      : (existing?.equipmentCategory ?? '');
+    const equipmentName = hasEquipName
+      ? (cells[7]?.trim() ?? '')
+      : (existing?.equipmentName ?? '');
+    const poji = hasPoji
+      ? parsePoji(cells[8])
+      : (existing?.poji ?? false);
+    const destination = hasDestination
+      ? (cells[9]?.trim() ?? '')
+      : (existing?.destination ?? '');
+    const productionMethod = hasMethod
+      ? (cells[10]?.trim() ?? '')
+      : (existing?.productionMethod ?? '');
+
     const product: Product = {
       code,
-      name: name || code,
-      capacityPerPallet: capacity || 1,
-      palletType: palletType || 'P03',
+      name: name || existing?.name || code,
+      capacityPerPallet: capacity || existing?.capacityPerPallet || 1,
+      palletType: palletType || existing?.palletType || 'P03',
       color,
+      factoryCode,
+      equipmentCategory,
+      equipmentName,
+      poji,
+      destination,
+      productionMethod,
     };
 
     products.push(product);
-    rows.push({ product, isNew: !existingMap[code], warnings: rowWarnings });
+    rows.push({ product, isNew: !existing, warnings: rowWarnings });
     if (rowWarnings.length > 0) {
       warnings.push(`行${r + 1}（${code}）: ${rowWarnings.join(' / ')}`);
     }
@@ -286,11 +328,26 @@ export function parseProductsCSV(
   return { products, rows, warnings };
 }
 
-/** 製品マスタ CSV テンプレートを生成 */
+/** 製品マスタ CSV テンプレートを生成（全11列） */
 export function generateProductsTemplate(products: Product[]): string {
-  const header = ['製品コード', '製品名', '個/枚', 'パレット型', 'カラー(hex)'].join(',');
+  const header = [
+    '製品コード', '製品名', '個/枚', 'パレット型', 'カラー(hex)',
+    '製造工場', '器具区分', '器具名', 'ポジ', '仕向け', '生産方式',
+  ].join(',');
   const rows = products.map((p) =>
-    [p.code, `"${p.name}"`, p.capacityPerPallet, p.palletType, p.color].join(','),
+    [
+      p.code,
+      `"${p.name}"`,
+      p.capacityPerPallet,
+      p.palletType,
+      p.color,
+      p.factoryCode ?? 'F001',
+      `"${p.equipmentCategory ?? ''}"`,
+      `"${p.equipmentName ?? ''}"`,
+      p.poji ? '○' : '',
+      `"${p.destination ?? ''}"`,
+      `"${p.productionMethod ?? ''}"`,
+    ].join(','),
   );
   return '\uFEFF' + [header, ...rows].join('\r\n');
 }
