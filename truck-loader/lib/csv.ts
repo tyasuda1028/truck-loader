@@ -43,6 +43,13 @@ function normalizeDate(raw: string, defaultYear?: number): string | null {
 
 // ─── 生産計画 CSV ─────────────────────────────────────────────────────
 
+/** DailyProductionPlan を浅クローン（製品ごとの日付マップを別オブジェクト化） */
+function cloneDailyPlan(src: DailyProductionPlan): DailyProductionPlan {
+  const out: DailyProductionPlan = {};
+  for (const code of Object.keys(src)) out[code] = { ...src[code] };
+  return out;
+}
+
 /**
  * 生産計画 CSV を解析する。
  *
@@ -51,10 +58,15 @@ function normalizeDate(raw: string, defaultYear?: number): string | null {
  *   製品コード, 製品名, YYYY-MM-DD, YYYY-MM-DD, ...
  *
  * 各行: 製品コード, [製品名,] 日別数量...
+ *
+ * マージ動作：CSVに含まれない日付（既存の他月データ等）と
+ * CSVに含まれない製品行は既存値を保持する。
  */
 export function parseProductionCSV(
   text: string,
   products: Product[],
+  existingDailyPlan: DailyProductionPlan = {},
+  existingProductionPlan: ProductionPlan = {},
 ): {
   dailyPlan: DailyProductionPlan;
   productionPlan: ProductionPlan;
@@ -68,7 +80,13 @@ export function parseProductionCSV(
   const warnings: string[] = [];
   if (lines.length < 2) {
     warnings.push('データが不足しています（ヘッダ行 + 1行以上のデータが必要です）');
-    return { dailyPlan: {}, productionPlan: {}, dates: [], rows: [], warnings };
+    return {
+      dailyPlan: cloneDailyPlan(existingDailyPlan),
+      productionPlan: { ...existingProductionPlan },
+      dates: [],
+      rows: [],
+      warnings,
+    };
   }
 
   const headers = parseCSVLine(lines[0]);
@@ -93,11 +111,18 @@ export function parseProductionCSV(
 
   if (dates.length === 0) {
     warnings.push('日付列が見つかりませんでした');
-    return { dailyPlan: {}, productionPlan: {}, dates: [], rows: [], warnings };
+    return {
+      dailyPlan: cloneDailyPlan(existingDailyPlan),
+      productionPlan: { ...existingProductionPlan },
+      dates: [],
+      rows: [],
+      warnings,
+    };
   }
 
-  const dailyPlan: DailyProductionPlan = {};
-  const productionPlan: ProductionPlan = {};
+  // 既存値からスタート（CSVに含まれない製品・日付を保持）
+  const dailyPlan: DailyProductionPlan = cloneDailyPlan(existingDailyPlan);
+  const productionPlan: ProductionPlan = { ...existingProductionPlan };
   const rows: { code: string; name: string; dailyQty: number[]; total: number; found: boolean }[] = [];
 
   for (let r = 1; r < lines.length; r++) {
@@ -110,20 +135,22 @@ export function parseProductionCSV(
       warnings.push(`行${r + 1}: 製品コード「${code}」はマスタに存在しません（インポートはされます）`);
     }
 
-    dailyPlan[code] = {};
-    let total = 0;
+    // この製品の日付マップを既存値ベースで初期化
+    dailyPlan[code] = { ...(dailyPlan[code] ?? {}) };
+    let csvSum = 0;
     const dailyQty: number[] = [];
 
     for (let c = 0; c < dates.length; c++) {
       const val = parseInt(cells[dateStartIdx + c] ?? '', 10) || 0;
       dailyPlan[code][dates[c]] = val;
       dailyQty.push(val);
-      total += val;
+      csvSum += val;
     }
 
-    productionPlan[code] = total;
+    // 週間生産数：CSVに含まれる日付の合計で更新（旧来の挙動を踏襲）
+    productionPlan[code] = csvSum;
     const name = dateStartIdx === 2 ? (cells[1]?.trim() ?? '') : (productMap[code]?.name ?? code);
-    rows.push({ code, name, dailyQty, total, found });
+    rows.push({ code, name, dailyQty, total: csvSum, found });
   }
 
   return { dailyPlan, productionPlan, dates, rows, warnings };
@@ -183,11 +210,15 @@ export function parseInventoryCSV(
 
 // ─── テンプレート生成 ─────────────────────────────────────────────────
 
-/** 生産計画 CSV テンプレートを生成（指定年月の全日付を列に展開） */
+/**
+ * 生産計画 CSV テンプレートを生成（指定年月の全日付を列に展開）。
+ * 既存の dailyPlan を渡すと、その月の現在値が初期値として出力される（ラウンドトリップ可能）。
+ */
 export function generateProductionTemplate(
   products: Product[],
   year: number,
   month: number,
+  dailyPlan: DailyProductionPlan = {},
 ): string {
   const daysInMonth = new Date(year, month, 0).getDate();
   const dates: string[] = [];
@@ -196,7 +227,7 @@ export function generateProductionTemplate(
   }
   const header = ['製品コード', '製品名', ...dates].join(',');
   const rows = products.map((p) =>
-    [p.code, `"${p.name}"`, ...dates.map(() => '0')].join(','),
+    [p.code, `"${p.name}"`, ...dates.map((d) => dailyPlan[p.code]?.[d] ?? 0)].join(','),
   );
   return '\uFEFF' + [header, ...rows].join('\r\n'); // BOM付きでExcel対応
 }
@@ -361,18 +392,29 @@ export function generateInventoryTemplate(products: Product[]): string {
 
 // ─── 拠点別在庫 CSV ───────────────────────────────────────────────────
 
+/** 製品×拠点マトリクス型の状態を浅クローン */
+function cloneMatrixStock<T extends Record<string, Record<string, number>>>(src: T): T {
+  const out = {} as T;
+  for (const code of Object.keys(src)) {
+    (out as Record<string, Record<string, number>>)[code] = { ...src[code] };
+  }
+  return out;
+}
+
 /**
  * 拠点別在庫 CSV を解析する（ワイド形式）。
  *
  * フォーマット（1行目ヘッダ）:
  *   製品コード, 製品名, 拠点コード1, 拠点コード2, ...
  *
- * 拠点名列は省略可（2列目が拠点コードに一致しなければ製品名として扱う）
+ * 拠点名列は省略可（2列目が拠点コードに一致しなければ製品名として扱う）。
+ * マージ動作：CSVに含まれない拠点列・製品行は既存値を保持する。
  */
 export function parseLocationStockCSV(
   text: string,
   products: Product[],
   warehouses: Warehouse[],
+  existingStock: LocationStock = {},
 ): {
   locationStock: LocationStock;
   rows: { code: string; name: string; whQty: Record<string, number>; found: boolean }[];
@@ -385,7 +427,7 @@ export function parseLocationStockCSV(
   const warnings: string[] = [];
   if (lines.length < 2) {
     warnings.push('データが不足しています（ヘッダ行 + 1行以上のデータが必要です）');
-    return { locationStock: {}, rows: [], warnings };
+    return { locationStock: cloneMatrixStock(existingStock), rows: [], warnings };
   }
 
   const headers = parseCSVLine(lines[0]);
@@ -409,10 +451,11 @@ export function parseLocationStockCSV(
 
   if (headerWarehouses.length === 0) {
     warnings.push('拠点コード列が見つかりませんでした');
-    return { locationStock: {}, rows: [], warnings };
+    return { locationStock: cloneMatrixStock(existingStock), rows: [], warnings };
   }
 
-  const locationStock: LocationStock = {};
+  // 既存値からスタート（CSVに含まれない製品・拠点を保持）
+  const locationStock: LocationStock = cloneMatrixStock(existingStock);
   const rows: { code: string; name: string; whQty: Record<string, number>; found: boolean }[] = [];
 
   for (let r = 1; r < lines.length; r++) {
@@ -425,7 +468,8 @@ export function parseLocationStockCSV(
       warnings.push(`行${r + 1}: 製品コード「${code}」はマスタに存在しません（インポートはされます）`);
     }
 
-    locationStock[code] = locationStock[code] ?? {};
+    // 既存の拠点値を引き継ぎつつ CSV にある拠点列を上書き
+    locationStock[code] = { ...(locationStock[code] ?? {}) };
     const whQty: Record<string, number> = {};
 
     for (let c = 0; c < headerWarehouses.length; c++) {
@@ -464,11 +508,14 @@ export function generateLocationStockTemplate(
  *
  * フォーマット（1行目ヘッダ）:
  *   製品コード, 製品名, 拠点コード1, 拠点コード2, ...
+ *
+ * マージ動作：CSVに含まれない拠点列・製品行は既存値を保持する。
  */
 export function parsePlannedSalesCSV(
   text: string,
   products: Product[],
   warehouses: Warehouse[],
+  existingSales: PlannedSales = {},
 ): {
   plannedSales: PlannedSales;
   rows: { code: string; name: string; whQty: Record<string, number>; found: boolean }[];
@@ -481,7 +528,7 @@ export function parsePlannedSalesCSV(
   const warnings: string[] = [];
   if (lines.length < 2) {
     warnings.push('データが不足しています（ヘッダ行 + 1行以上のデータが必要です）');
-    return { plannedSales: {}, rows: [], warnings };
+    return { plannedSales: cloneMatrixStock(existingSales), rows: [], warnings };
   }
 
   const headers = parseCSVLine(lines[0]);
@@ -502,10 +549,11 @@ export function parsePlannedSalesCSV(
 
   if (headerWarehouses.length === 0) {
     warnings.push('拠点コード列が見つかりませんでした');
-    return { plannedSales: {}, rows: [], warnings };
+    return { plannedSales: cloneMatrixStock(existingSales), rows: [], warnings };
   }
 
-  const plannedSales: PlannedSales = {};
+  // 既存値からスタート（CSVに含まれない製品・拠点を保持）
+  const plannedSales: PlannedSales = cloneMatrixStock(existingSales);
   const rows: { code: string; name: string; whQty: Record<string, number>; found: boolean }[] = [];
 
   for (let r = 1; r < lines.length; r++) {
@@ -518,7 +566,7 @@ export function parsePlannedSalesCSV(
       warnings.push(`行${r + 1}: 製品コード「${code}」はマスタに存在しません（インポートはされます）`);
     }
 
-    plannedSales[code] = plannedSales[code] ?? {};
+    plannedSales[code] = { ...(plannedSales[code] ?? {}) };
     const whQty: Record<string, number> = {};
 
     for (let c = 0; c < headerWarehouses.length; c++) {
@@ -550,41 +598,83 @@ export function generatePlannedSalesTemplate(
   return '\uFEFF' + [header, ...rows].join('\r\n');
 }
 
-/** 輸送中在庫 CSV を解析（製品 × 拠点のマトリクス形式） */
+/**
+ * 輸送中在庫 CSV を解析（製品 × 拠点のマトリクス形式）。
+ *
+ * フォーマット（1行目ヘッダ）:
+ *   製品コード, 製品名, 拠点コード1, 拠点コード2, ...
+ *
+ * 製品名列は省略可（2列目が拠点コードに一致しなければ製品名として扱う）。
+ * マージ動作：CSVに含まれない拠点列・製品行は既存値を保持する。
+ */
 export function parseInTransitStockCSV(
   text: string,
   products: Product[],
   warehouses: Warehouse[],
-): { inTransitStock: InTransitStock; rows: { code: string; name: string; found: boolean; whQty: Record<string, number> }[]; warnings: string[] } {
+  existingStock: InTransitStock = {},
+): {
+  inTransitStock: InTransitStock;
+  rows: { code: string; name: string; whQty: Record<string, number>; found: boolean }[];
+  warnings: string[];
+} {
   const productMap = Object.fromEntries(products.map((p) => [p.code, p]));
   const warehouseCodes = new Set(warehouses.map((w) => w.code));
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
 
   const warnings: string[] = [];
-  if (lines.length < 2) return { inTransitStock: {}, rows: [], warnings: ['データが空です'] };
+  if (lines.length < 2) {
+    warnings.push('データが不足しています（ヘッダ行 + 1行以上のデータが必要です）');
+    return { inTransitStock: cloneMatrixStock(existingStock), rows: [], warnings };
+  }
 
-  const headers = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, ''));
-  const whCodes = headers.slice(2).filter((wc) => warehouseCodes.has(wc));
+  const headers = parseCSVLine(lines[0]);
 
-  const rows: { code: string; name: string; found: boolean; whQty: Record<string, number> }[] = [];
-  const inTransitStock: InTransitStock = {};
+  // 2列目が拠点コードかどうかで「製品名列あり」を判定
+  let whStartIdx = 1;
+  if (headers.length > 1 && !warehouseCodes.has(headers[1])) {
+    whStartIdx = 2;
+  }
 
-  for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
-    const code = cols[0];
+  const headerWarehouses: string[] = [];
+  for (let i = whStartIdx; i < headers.length; i++) {
+    const wc = headers[i]?.trim();
+    if (!wc) continue;
+    if (!warehouseCodes.has(wc)) {
+      warnings.push(`ヘッダ「${wc}」は拠点コードとして認識できませんでした（スキップ）`);
+    }
+    headerWarehouses.push(wc);
+  }
+
+  if (headerWarehouses.length === 0) {
+    warnings.push('拠点コード列が見つかりませんでした');
+    return { inTransitStock: cloneMatrixStock(existingStock), rows: [], warnings };
+  }
+
+  const inTransitStock: InTransitStock = cloneMatrixStock(existingStock);
+  const rows: { code: string; name: string; whQty: Record<string, number>; found: boolean }[] = [];
+
+  for (let r = 1; r < lines.length; r++) {
+    const cells = parseCSVLine(lines[r]);
+    const code = cells[0]?.trim();
     if (!code) continue;
+
     const found = !!productMap[code];
-    if (!found) warnings.push(`行${i + 1}: 製品コード "${code}" はマスタに存在しません`);
+    if (!found) {
+      warnings.push(`行${r + 1}: 製品コード「${code}」はマスタに存在しません（インポートはされます）`);
+    }
 
+    inTransitStock[code] = { ...(inTransitStock[code] ?? {}) };
     const whQty: Record<string, number> = {};
-    whCodes.forEach((wc) => {
-      const idx = headers.indexOf(wc);
-      const val = parseInt(cols[idx] ?? '0', 10);
-      whQty[wc] = isNaN(val) ? 0 : val;
-    });
 
-    rows.push({ code, name: productMap[code]?.name ?? code, found, whQty });
-    if (found) inTransitStock[code] = whQty;
+    for (let c = 0; c < headerWarehouses.length; c++) {
+      const wc = headerWarehouses[c];
+      const qty = parseInt(cells[whStartIdx + c] ?? '', 10) || 0;
+      inTransitStock[code][wc] = qty;
+      whQty[wc] = qty;
+    }
+
+    const name = whStartIdx === 2 ? (cells[1]?.trim() ?? '') : (productMap[code]?.name ?? code);
+    rows.push({ code, name, whQty, found });
   }
 
   return { inTransitStock, rows, warnings };
@@ -605,40 +695,83 @@ export function generateInTransitStockTemplate(
   return '\uFEFF' + [header, ...rows].join('\r\n');
 }
 
-/** 配分比率 CSV を解析（製品 × 拠点のマトリクス形式） */
+/**
+ * 配分比率 CSV を解析（製品 × 拠点のマトリクス形式）。
+ *
+ * フォーマット（1行目ヘッダ）:
+ *   製品コード, 製品名, 拠点コード1, 拠点コード2, ...
+ *
+ * 製品名列は省略可（2列目が拠点コードに一致しなければ製品名として扱う）。
+ * マージ動作：CSVに含まれない拠点列・製品行は既存値を保持する。
+ * 値は 0〜100 の整数（%）。
+ */
 export function parseDistributionRatiosCSV(
   text: string,
   products: Product[],
   warehouses: Warehouse[],
-): { ratios: DistributionRatios; rows: { code: string; name: string; found: boolean; whRatio: Record<string, number> }[]; warnings: string[] } {
-  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(Boolean);
-  if (lines.length < 2) return { ratios: {}, rows: [], warnings: ['データが空です'] };
-
-  const headers = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, ''));
-  const whCodes = headers.slice(2);
+  existingRatios: DistributionRatios = {},
+): {
+  ratios: DistributionRatios;
+  rows: { code: string; name: string; whRatio: Record<string, number>; found: boolean }[];
+  warnings: string[];
+} {
   const productMap = Object.fromEntries(products.map((p) => [p.code, p]));
-  const warehouseSet = new Set(warehouses.map((w) => w.code));
+  const warehouseCodes = new Set(warehouses.map((w) => w.code));
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
 
   const warnings: string[] = [];
-  const rows: { code: string; name: string; found: boolean; whRatio: Record<string, number> }[] = [];
-  const ratios: DistributionRatios = {};
+  if (lines.length < 2) {
+    warnings.push('データが不足しています（ヘッダ行 + 1行以上のデータが必要です）');
+    return { ratios: cloneMatrixStock(existingRatios), rows: [], warnings };
+  }
 
-  for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
-    const code = cols[0];
+  const headers = parseCSVLine(lines[0]);
+
+  let whStartIdx = 1;
+  if (headers.length > 1 && !warehouseCodes.has(headers[1])) {
+    whStartIdx = 2;
+  }
+
+  const headerWarehouses: string[] = [];
+  for (let i = whStartIdx; i < headers.length; i++) {
+    const wc = headers[i]?.trim();
+    if (!wc) continue;
+    if (!warehouseCodes.has(wc)) {
+      warnings.push(`ヘッダ「${wc}」は拠点コードとして認識できませんでした（スキップ）`);
+    }
+    headerWarehouses.push(wc);
+  }
+
+  if (headerWarehouses.length === 0) {
+    warnings.push('拠点コード列が見つかりませんでした');
+    return { ratios: cloneMatrixStock(existingRatios), rows: [], warnings };
+  }
+
+  const ratios: DistributionRatios = cloneMatrixStock(existingRatios);
+  const rows: { code: string; name: string; whRatio: Record<string, number>; found: boolean }[] = [];
+
+  for (let r = 1; r < lines.length; r++) {
+    const cells = parseCSVLine(lines[r]);
+    const code = cells[0]?.trim();
     if (!code) continue;
+
     const found = !!productMap[code];
-    if (!found) warnings.push(`行${i + 1}: 製品コード "${code}" はマスタに存在しません`);
+    if (!found) {
+      warnings.push(`行${r + 1}: 製品コード「${code}」はマスタに存在しません（インポートはされます）`);
+    }
 
+    ratios[code] = { ...(ratios[code] ?? {}) };
     const whRatio: Record<string, number> = {};
-    whCodes.forEach((wc, idx) => {
-      if (!warehouseSet.has(wc)) return;
-      const val = parseInt(cols[idx + 2] ?? '0', 10);
-      whRatio[wc] = isNaN(val) ? 0 : val;
-    });
 
-    rows.push({ code, name: productMap[code]?.name ?? code, found, whRatio });
-    if (found) ratios[code] = whRatio;
+    for (let c = 0; c < headerWarehouses.length; c++) {
+      const wc = headerWarehouses[c];
+      const val = parseInt(cells[whStartIdx + c] ?? '', 10) || 0;
+      ratios[code][wc] = val;
+      whRatio[wc] = val;
+    }
+
+    const name = whStartIdx === 2 ? (cells[1]?.trim() ?? '') : (productMap[code]?.name ?? code);
+    rows.push({ code, name, whRatio, found });
   }
 
   return { ratios, rows, warnings };

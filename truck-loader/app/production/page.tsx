@@ -23,7 +23,7 @@ type Tab = 'production' | 'location' | 'transit' | 'sales' | 'ratio';
 export default function ProductionPage() {
   const {
     factories, products, warehouses, truckTypes,
-    productionPlan, distributionRatios,
+    productionPlan, dailyProductionPlan, distributionRatios,
     locationStock, inTransitStock, plannedSales, inventoryStock,
     setProductionQty, setRatio, setLocationStock, setPlannedSales, setInTransitStock,
     importProductionPlan, importLocationStockBulk, importPlannedSalesBulk, importInTransitStockBulk, importDistributionRatiosBulk,
@@ -88,7 +88,7 @@ export default function ProductionPage() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
-      setProdPreview(parseProductionCSV(ev.target?.result as string, products));
+      setProdPreview(parseProductionCSV(ev.target?.result as string, products, dailyProductionPlan, productionPlan));
       setProdImported(false);
     };
     reader.readAsText(file, 'utf-8');
@@ -99,7 +99,7 @@ export default function ProductionPage() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
-      setLocPreview(parseLocationStockCSV(ev.target?.result as string, products, warehouses));
+      setLocPreview(parseLocationStockCSV(ev.target?.result as string, products, warehouses, locationStock));
       setLocImported(false);
     };
     reader.readAsText(file, 'utf-8');
@@ -110,7 +110,7 @@ export default function ProductionPage() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
-      setTransitPreview(parseInTransitStockCSV(ev.target?.result as string, products, warehouses));
+      setTransitPreview(parseInTransitStockCSV(ev.target?.result as string, products, warehouses, inTransitStock));
       setTransitImported(false);
     };
     reader.readAsText(file, 'utf-8');
@@ -121,7 +121,7 @@ export default function ProductionPage() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
-      setRatioPreview(parseDistributionRatiosCSV(ev.target?.result as string, products, warehouses));
+      setRatioPreview(parseDistributionRatiosCSV(ev.target?.result as string, products, warehouses, distributionRatios));
       setRatioImported(false);
     };
     reader.readAsText(file, 'utf-8');
@@ -132,7 +132,7 @@ export default function ProductionPage() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
-      setSalesPreview(parsePlannedSalesCSV(ev.target?.result as string, products, warehouses));
+      setSalesPreview(parsePlannedSalesCSV(ev.target?.result as string, products, warehouses, plannedSales));
       setSalesImported(false);
     };
     reader.readAsText(file, 'utf-8');
@@ -192,6 +192,7 @@ export default function ProductionPage() {
             <h2 className="text-sm font-bold text-slate-700 mb-1">CSVインポート</h2>
             <p className="text-xs text-slate-500 mb-4">
               製品コードを行、日付を列としたCSVを取り込みます。日付の合計が週間生産数として反映されます。
+              CSVに含まれない製品行・日付列の既存値は保持されます。
             </p>
             <div className="flex flex-wrap items-center gap-2 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
               <span className="text-xs text-slate-600 font-medium">テンプレートDL：</span>
@@ -209,7 +210,7 @@ export default function ProductionPage() {
               </select>
               <button
                 onClick={() => downloadCSV(
-                  generateProductionTemplate(products, templateYear, templateMonth),
+                  generateProductionTemplate(products, templateYear, templateMonth, dailyProductionPlan),
                   `生産計画_${templateYear}-${String(templateMonth).padStart(2,'0')}.csv`,
                 )}
                 className="text-xs px-3 py-1.5 bg-slate-700 text-white rounded hover:bg-slate-800 transition-colors"
@@ -398,7 +399,8 @@ export default function ProductionPage() {
           <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
             <h2 className="text-sm font-bold text-slate-700 mb-1">CSVインポート</h2>
             <p className="text-xs text-slate-500 mb-4">
-              製品×拠点のマトリクス形式（ワイド形式）のCSVを取り込みます。取り込んだ値で全拠点の在庫数を一括更新します。
+              製品×拠点のマトリクス形式（ワイド形式）のCSVを取り込みます。
+              CSVに含まれない製品行・拠点列の既存値は保持されます。
             </p>
             <div className="flex items-center gap-2 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
               <span className="text-xs text-slate-600 font-medium">テンプレートDL：</span>
@@ -593,6 +595,7 @@ export default function ProductionPage() {
             <h2 className="text-sm font-bold text-slate-700 mb-1">CSVインポート / ダウンロード</h2>
             <p className="text-xs text-slate-500 mb-4">
               製品×拠点のマトリクス形式（ワイド形式）で輸送中数量を一括管理できます。
+              CSVに含まれない製品行・拠点列の既存値は保持されます。
             </p>
             <div className="flex items-center gap-2 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
               <span className="text-xs text-slate-600 font-medium">テンプレートDL：</span>
@@ -763,6 +766,7 @@ export default function ProductionPage() {
             <h2 className="text-sm font-bold text-slate-700 mb-1">CSVインポート</h2>
             <p className="text-xs text-slate-500 mb-4">
               製品×拠点のマトリクス形式（ワイド形式）のCSVを取り込みます。拠点別在庫CSVと同じフォーマットです。
+              CSVに含まれない製品行・拠点列の既存値は保持されます。
             </p>
             <div className="flex items-center gap-2 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
               <span className="text-xs text-slate-600 font-medium">テンプレートDL：</span>
@@ -913,6 +917,7 @@ export default function ProductionPage() {
             <h2 className="text-sm font-bold text-slate-700 mb-1">CSVインポート / ダウンロード</h2>
             <p className="text-xs text-slate-500 mb-4">
               製品×拠点のマトリクス形式（ワイド形式）で配分比率を一括管理できます。各セルに0〜100の整数を入力してください。
+              CSVに含まれない製品行・拠点列の既存値は保持されます。
             </p>
             <div className="flex items-center gap-2 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
               <span className="text-xs text-slate-600 font-medium">テンプレートDL：</span>
