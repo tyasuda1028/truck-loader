@@ -38,6 +38,7 @@ export default function SettingsPage() {
   const [csvImported, setCsvImported] = useState(false);
   const [csvImportError, setCsvImportError] = useState<string | null>(null);
   const [csvImporting, setCsvImporting] = useState(false);
+  const [productOpError, setProductOpError] = useState<string | null>(null);
 
   // 製品の新規追加用空テンプレート
   const newProduct = (): Product => ({
@@ -66,12 +67,28 @@ export default function SettingsPage() {
     setEditingFactory(null);
   };
 
-  const handleSaveProduct = () => {
+  const handleSaveProduct = async () => {
     if (!editingProduct || !editingProduct.code.trim() || !editingProduct.name.trim()) return;
+    setProductOpError(null);
     const exists = products.some((p) => p.code === editingProduct.code);
-    if (exists) updateProduct(editingProduct);
-    else addProduct(editingProduct);
-    setEditingProduct(null);
+    try {
+      if (exists) await updateProduct(editingProduct);
+      else await addProduct(editingProduct);
+      setEditingProduct(null);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setProductOpError(`保存に失敗しました: ${msg}`);
+    }
+  };
+
+  const handleRemoveProduct = async (code: string) => {
+    setProductOpError(null);
+    try {
+      await removeProduct(code);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setProductOpError(`削除に失敗しました: ${msg}`);
+    }
   };
 
   const handleSaveWarehouse = () => {
@@ -248,6 +265,29 @@ export default function SettingsPage() {
       {/* ── 製品マスタ ── */}
       {tab === 'products' && (
         <div>
+          {/* 製品マスタ操作のエラー（追加・更新・削除） */}
+          {productOpError && (
+            <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+              <div className="flex items-start gap-2">
+                <span className="font-bold shrink-0">❌</span>
+                <div className="flex-1">
+                  <div className="font-mono break-all">{productOpError}</div>
+                  <div className="mt-2 text-red-600">
+                    画面の表示は楽観更新ではなく、DB保存が成功した内容のみ反映されます。
+                    エラー内容を解消してから再度お試しください。
+                  </div>
+                </div>
+                <button
+                  onClick={() => setProductOpError(null)}
+                  className="text-red-500 hover:text-red-700 text-xs shrink-0"
+                  aria-label="閉じる"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* CSVインポートパネル */}
           <details className="mb-4 bg-slate-50 border border-slate-200 rounded-lg">
             <summary className="px-4 py-3 text-sm font-medium text-slate-600 cursor-pointer select-none hover:bg-slate-100 rounded-lg">
@@ -447,7 +487,7 @@ export default function SettingsPage() {
                       <td className="px-3 py-2 text-center text-slate-600">{p.productionMethod ?? '—'}</td>
                       <td className="px-3 py-2 text-right whitespace-nowrap">
                         <button onClick={() => setEditingProduct({ ...p })} className="text-xs text-brand-600 hover:underline mr-3">編集</button>
-                        <button onClick={() => removeProduct(p.code)} className="text-xs text-red-400 hover:underline">削除</button>
+                        <button onClick={() => handleRemoveProduct(p.code)} className="text-xs text-red-400 hover:underline">削除</button>
                       </td>
                     </tr>
                   );

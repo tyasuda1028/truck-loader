@@ -69,9 +69,9 @@ interface AppState {
   clearInTransitStock: () => void;
   confirmShipment: (sendQty: Record<string, Record<string, number>>) => void;
 
-  addProduct: (product: Product) => void;
-  updateProduct: (product: Product) => void;
-  removeProduct: (productCode: string) => void;
+  addProduct: (product: Product) => Promise<void>;
+  updateProduct: (product: Product) => Promise<void>;
+  removeProduct: (productCode: string) => Promise<void>;
   upsertProducts: (incoming: Product[]) => Promise<void>;
 
   addWarehouse: (warehouse: Warehouse) => void;
@@ -148,20 +148,24 @@ export const useAppStore = create<AppState>()((set, get) => ({
         return;
       }
 
+      // ⚠ DBから読み込んだ内容をそのまま使う（DEFAULT_*フォールバックは撤廃）。
+      // ユーザーが明示的に削除した行が、リロード時にデフォルト値で復活してしまう
+      // 不具合を防ぐため。初回ロード（factories=0）は上の seedDefaults 分岐で
+      // 全マスタが自動投入される。
       set({
         isLoaded: true,
-        factories: factories.length > 0 ? factories : DEFAULT_FACTORIES,
-        products: products.length > 0 ? products : DEFAULT_PRODUCTS,
-        warehouses: warehouses.length > 0 ? warehouses : DEFAULT_WAREHOUSES,
-        truckTypes: truckTypes.length > 0 ? truckTypes : DEFAULT_TRUCK_TYPES,
-        palletTypes: palletTypes.length > 0 ? palletTypes : DEFAULT_PALLET_TYPES,
-        productionPlan: Object.keys(productionPlan).length > 0 ? productionPlan : DEFAULT_PRODUCTION_PLAN,
+        factories,
+        products,
+        warehouses,
+        truckTypes,
+        palletTypes,
+        productionPlan,
         dailyProductionPlan,
-        distributionRatios: Object.keys(distributionRatios).length > 0 ? distributionRatios : DEFAULT_DISTRIBUTION_RATIOS,
-        inventoryStock: Object.keys(inventoryStock).length > 0 ? inventoryStock : DEFAULT_INVENTORY_STOCK,
+        distributionRatios,
+        inventoryStock,
         locationStock,
         weeklyShippingSchedule,
-        operatingDays: Object.keys(operatingDays).length > 0 ? operatingDays : DEFAULT_OPERATING_DAYS,
+        operatingDays,
         inTransitStock,
         plannedSales,
       });
@@ -333,19 +337,21 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
 
   // ─── 製品 ─────────────────────────────────────────────────
-  addProduct: (product) => {
+  // DBへの書き込みを先に await し、成功した場合のみメモリ state を更新する。
+  // 失敗時はエラーを呼び出し側に throw するので、UI で握りつぶさず表示できる。
+  addProduct: async (product) => {
+    await db.upsertProduct(product);
     set((s) => ({ products: [...s.products, product] }));
-    db.upsertProduct(product).catch(console.error);
   },
 
-  updateProduct: (product) => {
+  updateProduct: async (product) => {
+    await db.upsertProduct(product);
     set((s) => ({ products: s.products.map((p) => (p.code === product.code ? product : p)) }));
-    db.upsertProduct(product).catch(console.error);
   },
 
-  removeProduct: (productCode) => {
+  removeProduct: async (productCode) => {
+    await db.deleteProduct(productCode);
     set((s) => ({ products: s.products.filter((p) => p.code !== productCode) }));
-    db.deleteProduct(productCode).catch(console.error);
   },
 
   upsertProducts: async (incoming) => {
