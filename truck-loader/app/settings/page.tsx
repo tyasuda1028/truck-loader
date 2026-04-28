@@ -36,6 +36,8 @@ export default function SettingsPage() {
   const prodCsvRef = useRef<HTMLInputElement>(null);
   const [csvPreview, setCsvPreview] = useState<ReturnType<typeof parseProductsCSV> | null>(null);
   const [csvImported, setCsvImported] = useState(false);
+  const [csvImportError, setCsvImportError] = useState<string | null>(null);
+  const [csvImporting, setCsvImporting] = useState(false);
 
   // 製品の新規追加用空テンプレート
   const newProduct = (): Product => ({
@@ -100,10 +102,20 @@ export default function SettingsPage() {
     reader.readAsText(file, 'utf-8');
   };
 
-  const handleProductCsvImport = () => {
+  const handleProductCsvImport = async () => {
     if (!csvPreview) return;
-    upsertProducts(csvPreview.products);
-    setCsvImported(true);
+    setCsvImportError(null);
+    setCsvImporting(true);
+    try {
+      await upsertProducts(csvPreview.products);
+      setCsvImported(true);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setCsvImportError(msg);
+      setCsvImported(false);
+    } finally {
+      setCsvImporting(false);
+    }
   };
 
   return (
@@ -347,22 +359,39 @@ export default function SettingsPage() {
               )}
 
               {csvPreview && (
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={handleProductCsvImport}
-                    disabled={csvImported}
-                    className={clsx(
-                      'px-4 py-2 text-sm rounded-lg transition-colors',
-                      csvImported
-                        ? 'bg-emerald-100 text-emerald-700 cursor-default'
-                        : 'bg-brand-600 text-white hover:bg-brand-700',
-                    )}
-                  >
-                    {csvImported ? '✓ インポート済み' : 'インポートする'}
-                  </button>
-                  {csvImported && <span className="text-xs text-emerald-600">製品マスタに反映されました</span>}
-                  <span className="text-xs text-slate-400 ml-auto">※既存の製品コードは上書き更新、新規コードは末尾に追加されます</span>
-                </div>
+                <>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={handleProductCsvImport}
+                      disabled={csvImported || csvImporting}
+                      className={clsx(
+                        'px-4 py-2 text-sm rounded-lg transition-colors',
+                        csvImported
+                          ? 'bg-emerald-100 text-emerald-700 cursor-default'
+                          : csvImporting
+                            ? 'bg-slate-200 text-slate-500 cursor-wait'
+                            : 'bg-brand-600 text-white hover:bg-brand-700',
+                      )}
+                    >
+                      {csvImported ? '✓ インポート済み' : csvImporting ? '保存中…' : 'インポートする'}
+                    </button>
+                    {csvImported && <span className="text-xs text-emerald-600">製品マスタに反映されました</span>}
+                    <span className="text-xs text-slate-400 ml-auto">※既存の製品コードは上書き更新、新規コードは末尾に追加されます</span>
+                  </div>
+                  {csvImportError && (
+                    <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+                      <div className="font-bold mb-1">❌ DB保存に失敗しました</div>
+                      <div className="font-mono break-all">{csvImportError}</div>
+                      <div className="mt-2 text-red-600">
+                        画面上の表示は楽観的な更新ではなく、保存成功した内容のみ反映されます。
+                        ページを更新するとこの取り込みは消えますので、エラー内容を解消してから再度お試しください。
+                        Supabaseの<code className="font-mono bg-red-100 px-1">products</code>テーブルにカラムが不足している場合は、
+                        リポジトリ同梱の <code className="font-mono bg-red-100 px-1">supabase/migrations/0001_add_product_fields.sql</code> を
+                        Supabaseダッシュボードの SQL Editor で実行してください。
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </details>

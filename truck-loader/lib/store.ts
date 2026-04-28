@@ -72,7 +72,7 @@ interface AppState {
   addProduct: (product: Product) => void;
   updateProduct: (product: Product) => void;
   removeProduct: (productCode: string) => void;
-  upsertProducts: (incoming: Product[]) => void;
+  upsertProducts: (incoming: Product[]) => Promise<void>;
 
   addWarehouse: (warehouse: Warehouse) => void;
   updateWarehouse: (warehouse: Warehouse) => void;
@@ -348,7 +348,11 @@ export const useAppStore = create<AppState>()((set, get) => ({
     db.deleteProduct(productCode).catch(console.error);
   },
 
-  upsertProducts: (incoming) => {
+  upsertProducts: async (incoming) => {
+    // DBへの書き込みを先に実行し、成功した場合のみメモリ上の state を更新する。
+    // これにより DB エラーが silent に握りつぶされず、呼び出し側が catch して
+    // ユーザーに伝えられる。リロード時に in-memory と DB が乖離するのも防げる。
+    await db.upsertProducts(incoming);
     set((s) => {
       const map = Object.fromEntries(s.products.map((p) => [p.code, p]));
       for (const p of incoming) map[p.code] = p;
@@ -357,7 +361,6 @@ export const useAppStore = create<AppState>()((set, get) => ({
       const added = incoming.filter((p) => !existingCodes.has(p.code));
       return { products: [...updated, ...added] };
     });
-    db.upsertProducts(incoming).catch(console.error);
   },
 
   // ─── 拠点 ─────────────────────────────────────────────────
