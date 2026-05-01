@@ -13,7 +13,7 @@ export default function LoadingPlanInner() {
   const {
     factories, products, warehouses, truckTypes,
     productionPlan, distributionRatios, inventoryStock, locationStock,
-    weeklyShippingSchedule, inTransitStock, plannedSales, confirmShipment,
+    weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual, confirmShipment,
   } = useAppStore();
 
   const productColors = Object.fromEntries(products.map((p) => [p.code, p.color]));
@@ -42,8 +42,9 @@ export default function LoadingPlanInner() {
         weeklyShippingSchedule,
         inTransitStock,
         plannedSales,
+        sendQtyManual,
       ),
-    [warehouses, products, truckTypes, factories, productionPlan, distributionRatios, inventoryStock, locationStock, weeklyShippingSchedule, inTransitStock, plannedSales],
+    [warehouses, products, truckTypes, factories, productionPlan, distributionRatios, inventoryStock, locationStock, weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual],
   );
 
   const [confirmed, setConfirmed] = useState(false);

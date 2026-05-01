@@ -1,7 +1,7 @@
 import type {
   Factory, Product, Warehouse, TruckType,
   ProductionPlan, DistributionRatios,
-  InventoryStock, LocationStock, InTransitStock, PlannedSales,
+  InventoryStock, LocationStock, InTransitStock, PlannedSales, SendQtyManual,
   PalletItem, TruckLoad, WarehousePlan,
   WeeklyShippingSchedule, DayWarehousePlan,
 } from './types';
@@ -163,6 +163,7 @@ export function calcAllPlans(
   locationStock: LocationStock,
   inTransitStock: InTransitStock = {},
   plannedSales: PlannedSales = {},
+  sendQtyManual: SendQtyManual = {},
 ): Record<string, WarehousePlan> {
   const truckMap = Object.fromEntries(truckTypes.map(t => [t.code, t]));
 
@@ -171,6 +172,9 @@ export function calcAllPlans(
     products, warehouses, productionPlan, ratios, inventoryStock, locationStock, inTransitStock, plannedSales,
   );
 
+  // 手動上書きを適用
+  applyManualOverrides(sendQty, sendQtyManual);
+
   const result: Record<string, WarehousePlan> = {};
   for (const wh of warehouses) {
     const truck = truckMap[wh.truckType];
@@ -178,6 +182,21 @@ export function calcAllPlans(
     result[wh.code] = calcWarehousePlan(wh.code, products, truck, sendQty);
   }
   return result;
+}
+
+/** 手動上書きを sendQty に適用する（in-place） */
+function applyManualOverrides(
+  sendQty: Record<string, Record<string, number>>,
+  manual: SendQtyManual,
+) {
+  for (const [pc, whMap] of Object.entries(manual)) {
+    for (const [wc, qty] of Object.entries(whMap)) {
+      if (qty > 0) {
+        if (!sendQty[pc]) sendQty[pc] = {};
+        sendQty[pc][wc] = qty;
+      }
+    }
+  }
 }
 
 /**
@@ -196,6 +215,7 @@ export function calcWeeklyPlans(
   schedule: WeeklyShippingSchedule,
   inTransitStock: InTransitStock = {},
   plannedSales: PlannedSales = {},
+  sendQtyManual: SendQtyManual = {},
 ): Record<string, DayWarehousePlan[]> {
   const truckMap = Object.fromEntries(truckTypes.map(t => [t.code, t]));
   const result: Record<string, DayWarehousePlan[]> = {};
@@ -221,6 +241,9 @@ export function calcWeeklyPlans(
       inTransitStock,
       plannedSales,
     );
+
+    // 手動上書きを適用（この工場の製品のみ）
+    applyManualOverrides(weeklySendQty, sendQtyManual);
 
     const dayPlans: DayWarehousePlan[] = [];
 

@@ -42,7 +42,7 @@ export default function SchedulePage() {
   const {
     factories, products, warehouses, truckTypes,
     productionPlan, distributionRatios, inventoryStock, locationStock,
-    weeklyShippingSchedule, inTransitStock, plannedSales, setShippingDay,
+    weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual, setShippingDay,
   } = useAppStore();
 
   const [selectedFactory, setSelectedFactory] = useState<string>(factories[0]?.code ?? '');
@@ -66,9 +66,9 @@ export default function SchedulePage() {
       calcWeeklyPlans(
         warehouses, products, truckTypes, factories,
         productionPlan, distributionRatios, inventoryStock, locationStock,
-        weeklyShippingSchedule, inTransitStock, plannedSales,
+        weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual,
       ),
-    [warehouses, products, truckTypes, factories, productionPlan, distributionRatios, inventoryStock, locationStock, weeklyShippingSchedule, inTransitStock, plannedSales],
+    [warehouses, products, truckTypes, factories, productionPlan, distributionRatios, inventoryStock, locationStock, weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual],
   );
 
   const factoryPlans = weeklyPlans[selectedFactory] ?? [];

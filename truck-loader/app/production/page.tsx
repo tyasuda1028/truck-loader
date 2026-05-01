@@ -9,23 +9,27 @@ import {
   parsePlannedSalesCSV,
   parseInTransitStockCSV,
   parseDistributionRatiosCSV,
+  parseSendQtyCSV,
   generateProductionTemplate,
   generateLocationStockTemplate,
   generatePlannedSalesTemplate,
   generateInTransitStockTemplate,
   generateDistributionRatiosTemplate,
+  generateSendQtyCSV,
   downloadCSV,
 } from '@/lib/csv';
 import clsx from 'clsx';
 
-type Tab = 'production' | 'location' | 'transit' | 'sales' | 'ratio';
+type Tab = 'production' | 'location' | 'transit' | 'sales' | 'ratio' | 'sendqty';
 
 export default function ProductionPage() {
   const {
     factories, products, warehouses, truckTypes,
     productionPlan, dailyProductionPlan, distributionRatios,
     locationStock, inTransitStock, plannedSales, inventoryStock,
+    sendQtyManual,
     setProductionQty, setRatio, setLocationStock, setPlannedSales, setInTransitStock,
+    setSendQtyManual, clearSendQtyManualCell, importSendQtyManualBulk, clearSendQtyManual,
     importProductionPlan, importLocationStockBulk, importPlannedSalesBulk, importInTransitStockBulk, importDistributionRatiosBulk,
     clearProductionPlan, clearLocationStock, clearPlannedSales, clearInTransitStock,
   } = useAppStore();
@@ -60,14 +64,35 @@ export default function ProductionPage() {
   const [ratioPreview,  setRatioPreview]  = useState<ReturnType<typeof parseDistributionRatiosCSV> | null>(null);
   const [ratioImported, setRatioImported] = useState(false);
 
-  const sendQty = useMemo(
+  // 送り数 CSV
+  const sendQtyFileRef = useRef<HTMLInputElement>(null);
+  const [sendQtyPreview,  setSendQtyPreview]  = useState<ReturnType<typeof parseSendQtyCSV> | null>(null);
+  const [sendQtyImported, setSendQtyImported] = useState(false);
+
+  // 自動計算送り数（手動上書き前）
+  const sendQtyCalc = useMemo(
     () => calcSendQty(products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales),
     [products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales],
   );
 
+  // 有効送り数（手動上書きを反映）
+  const sendQty = useMemo(() => {
+    const result: Record<string, Record<string, number>> = {};
+    for (const p of products) {
+      result[p.code] = {};
+      for (const wh of warehouses) {
+        const manual = sendQtyManual[p.code]?.[wh.code];
+        result[p.code][wh.code] = (manual !== undefined && manual > 0)
+          ? manual
+          : (sendQtyCalc[p.code]?.[wh.code] ?? 0);
+      }
+    }
+    return result;
+  }, [products, warehouses, sendQtyCalc, sendQtyManual]);
+
   const plans = useMemo(
-    () => calcAllPlans(warehouses, products, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales),
-    [warehouses, products, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales],
+    () => calcAllPlans(warehouses, products, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales, sendQtyManual),
+    [warehouses, products, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales, sendQtyManual],
   );
 
   const activeWarehouses = warehouses.filter((wh) =>
@@ -80,6 +105,7 @@ export default function ProductionPage() {
     if (tab === 'location')   clearLocationStock();
     if (tab === 'transit')    clearInTransitStock();
     if (tab === 'sales')      clearPlannedSales();
+    if (tab === 'sendqty')    clearSendQtyManual();
   };
 
   // ─── CSV ハンドラ ────────────────────────────────────────────────────
@@ -144,7 +170,19 @@ export default function ProductionPage() {
     { key: 'transit',    label: '🚚 輸送中（前回決定分）' },
     { key: 'sales',      label: '🛒 予定出荷数' },
     { key: 'ratio',      label: '📊 配分比率' },
+    { key: 'sendqty',    label: '📦 送り数設定' },
   ];
+
+  const handleSendQtyFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setSendQtyPreview(parseSendQtyCSV(ev.target?.result as string, products, warehouses, sendQtyManual));
+      setSendQtyImported(false);
+    };
+    reader.readAsText(file, 'utf-8');
+  };
 
   return (
     <div className="max-w-screen-xl mx-auto px-4 py-6">
@@ -1144,6 +1182,213 @@ export default function ProductionPage() {
                 </table>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── タブ⑤：送り数設定 ── */}
+      {activeTab === 'sendqty' && (
+        <div className="flex flex-col gap-6">
+          <div className="text-xs text-slate-500 bg-blue-50 border border-blue-200 rounded px-3 py-2">
+            💡 配分比率・在庫・生産計画から<strong className="text-blue-700">自動計算された送り数</strong>を確認し、必要に応じて直接修正できます。
+            手動入力した値は青色で表示され、積載計画・出荷スケジュールに反映されます。空欄にすると自動計算値に戻ります。
+          </div>
+
+          {/* CSV インポート / エクスポート */}
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
+            <h2 className="text-sm font-bold text-slate-700 mb-1">CSVインポート / エクスポート</h2>
+            <p className="text-xs text-slate-500 mb-4">
+              製品×拠点のマトリクス形式（ワイド形式）で送り数を一括管理できます。インポートした値は手動値として上書き保存されます。
+            </p>
+            <div className="flex items-center gap-3 mb-4 flex-wrap">
+              <button
+                onClick={() => downloadCSV(
+                  generateSendQtyCSV(products, warehouses, sendQtyCalc, sendQtyManual),
+                  `送り数_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.csv`,
+                )}
+                className="text-xs px-3 py-1.5 bg-slate-700 text-white rounded hover:bg-slate-800 transition-colors"
+              >
+                📥 現在値をCSVでダウンロード
+              </button>
+              <input ref={sendQtyFileRef} type="file" accept=".csv,text/csv" onChange={handleSendQtyFile} className="hidden" />
+              <button
+                onClick={() => { sendQtyFileRef.current?.click(); setSendQtyPreview(null); setSendQtyImported(false); }}
+                className="text-sm px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                CSVファイルを選択
+              </button>
+              {sendQtyPreview && (
+                <span className="text-xs text-slate-500">
+                  {sendQtyPreview.rows.length}製品 × {Object.keys(sendQtyPreview.rows[0]?.whQty ?? {}).length}拠点分を読み込みました
+                </span>
+              )}
+            </div>
+            {sendQtyPreview?.warnings && sendQtyPreview.warnings.length > 0 && (
+              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 space-y-0.5">
+                {sendQtyPreview.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+              </div>
+            )}
+            {sendQtyPreview && sendQtyPreview.rows.length > 0 && (() => {
+              const whCodes = Object.keys(sendQtyPreview.rows[0]?.whQty ?? {});
+              return (
+                <div className="overflow-x-auto mb-4">
+                  <table className="text-xs border-collapse w-full">
+                    <thead>
+                      <tr className="bg-slate-50">
+                        <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 border-r border-slate-200 min-w-[160px]">製品</th>
+                        {whCodes.map((wc) => (
+                          <th key={wc} className="px-2 py-2 text-center font-semibold text-slate-400 min-w-[64px]">
+                            <div>{wc}</div>
+                            <div className="text-[10px]">{warehouses.find(w => w.code === wc)?.name.slice(0, 4)}</div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sendQtyPreview.rows.map((row) => (
+                        <tr key={row.code} className={clsx('border-t border-slate-100', !row.found && 'bg-amber-50')}>
+                          <td className="px-3 py-1.5 sticky left-0 bg-white border-r border-slate-200">
+                            <div className="font-medium text-slate-700">{row.name}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">{row.code}</div>
+                          </td>
+                          {whCodes.map((wc) => {
+                            const qty = row.whQty[wc] ?? 0;
+                            return (
+                              <td key={wc} className="px-2 py-1.5 text-center text-slate-600">
+                                {qty > 0 ? <span className="font-medium text-blue-600">{qty.toLocaleString()}</span> : <span className="text-slate-300">—</span>}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+            {sendQtyPreview && (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => { importSendQtyManualBulk(sendQtyPreview.sendQty); setSendQtyImported(true); }}
+                  disabled={sendQtyImported}
+                  className={clsx(
+                    'px-4 py-2 text-sm rounded-lg transition-colors',
+                    sendQtyImported ? 'bg-emerald-100 text-emerald-700 cursor-default' : 'bg-blue-600 text-white hover:bg-blue-700',
+                  )}
+                >
+                  {sendQtyImported ? '✓ インポート済み' : 'インポートする'}
+                </button>
+                {sendQtyImported && <span className="text-xs text-emerald-600">送り数（手動値）に反映されました</span>}
+              </div>
+            )}
+          </div>
+
+          {/* インライン編集マトリクス */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-sm font-semibold text-slate-600">拠点別 送り数（個）</h2>
+              <button
+                onClick={() => handleClear('sendqty')}
+                className="text-xs text-slate-400 hover:text-red-500 transition-colors"
+              >
+                手動値をすべてクリア
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
+                <table className="text-xs border-collapse w-full">
+                  <thead>
+                    <tr className="bg-slate-50">
+                      <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
+                      {warehouses.map((wh) => (
+                        <th key={wh.code} className="px-1 py-2.5 text-center font-semibold text-slate-500 min-w-[90px]">
+                          <div className="font-bold text-slate-400 text-[10px]">{wh.code}</div>
+                          <div className="text-[9px] text-slate-400 leading-tight">{wh.name.slice(0, 5)}</div>
+                        </th>
+                      ))}
+                      <th className="px-3 py-2.5 text-right font-semibold text-slate-500 min-w-[72px]">合計</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.map((p) => {
+                      const rowTotal = warehouses.reduce((s, wh) => s + (sendQty[p.code]?.[wh.code] ?? 0), 0);
+                      const hasManual = warehouses.some((wh) => (sendQtyManual[p.code]?.[wh.code] ?? 0) > 0);
+                      return (
+                        <tr key={p.code} className={clsx('border-t border-slate-100 hover:bg-slate-50', hasManual && 'bg-blue-50/30')}>
+                          <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
+                              <span className="font-medium text-slate-700">{p.name}</span>
+                            </div>
+                          </td>
+                          {warehouses.map((wh) => {
+                            const calcVal = sendQtyCalc[p.code]?.[wh.code] ?? 0;
+                            const manualVal = sendQtyManual[p.code]?.[wh.code];
+                            const isManual = manualVal !== undefined && manualVal > 0;
+                            return (
+                              <td key={wh.code} className="px-1 py-1 text-center">
+                                <div className="flex flex-col gap-0.5 items-center">
+                                  {/* 自動計算値（参照表示） */}
+                                  <div style={{ fontSize: 9, color: '#9ca3af' }}>
+                                    自動: {calcVal > 0 ? calcVal.toLocaleString() : '—'}
+                                  </div>
+                                  {/* 手動入力フィールド */}
+                                  <input
+                                    type="number" min={0}
+                                    value={isManual ? manualVal : ''}
+                                    onChange={(e) => {
+                                      const v = parseInt(e.target.value, 10);
+                                      if (isNaN(v) || e.target.value === '') {
+                                        clearSendQtyManualCell(p.code, wh.code);
+                                      } else {
+                                        setSendQtyManual(p.code, wh.code, v);
+                                      }
+                                    }}
+                                    placeholder={calcVal > 0 ? String(calcVal) : '0'}
+                                    className={clsx(
+                                      'w-16 text-center border rounded px-1 py-0.5 text-xs focus:outline-none',
+                                      isManual
+                                        ? 'border-blue-400 bg-blue-50 text-blue-700 font-semibold focus:ring-1 focus:ring-blue-400'
+                                        : 'border-slate-200 bg-white text-slate-600 focus:border-blue-400 focus:ring-1 focus:ring-blue-300',
+                                    )}
+                                  />
+                                </div>
+                              </td>
+                            );
+                          })}
+                          <td className="px-3 py-1.5 text-right font-semibold">
+                            {rowTotal > 0
+                              ? <span className={hasManual ? 'text-blue-600' : 'text-slate-700'}>{rowTotal.toLocaleString()}個</span>
+                              : <span className="text-slate-300">—</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {/* 合計行 */}
+                    <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold">
+                      <td className="px-3 py-2 sticky left-0 bg-slate-50 border-r border-slate-200 text-slate-600">合計</td>
+                      {warehouses.map((wh) => {
+                        const total = products.reduce((s, p) => s + (sendQty[p.code]?.[wh.code] ?? 0), 0);
+                        const hasM   = products.some((p) => (sendQtyManual[p.code]?.[wh.code] ?? 0) > 0);
+                        return (
+                          <td key={wh.code} className={clsx('px-2 py-2 text-center', hasM ? 'text-blue-600' : 'text-slate-600')}>
+                            {total > 0 ? `${total.toLocaleString()}個` : '—'}
+                          </td>
+                        );
+                      })}
+                      <td className="px-3 py-2 text-right text-slate-700">
+                        {products.reduce((s, p) => s + warehouses.reduce((ss, wh) => ss + (sendQty[p.code]?.[wh.code] ?? 0), 0), 0) > 0
+                          ? `${products.reduce((s, p) => s + warehouses.reduce((ss, wh) => ss + (sendQty[p.code]?.[wh.code] ?? 0), 0), 0).toLocaleString()}個`
+                          : '—'}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-2">
+              ※ 青色フィールドは手動入力値です。空欄にすると自動計算値に戻ります。手動値は積載計画・出荷スケジュールに即時反映されます。
+            </p>
           </div>
         </div>
       )}

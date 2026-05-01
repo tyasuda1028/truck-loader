@@ -7,7 +7,7 @@ import type {
   Factory, Product, Warehouse, TruckType, PalletType,
   ProductionPlan, DailyProductionPlan, DistributionRatios,
   InventoryStock, LocationStock, WeeklyShippingSchedule, InTransitStock, PlannedSales,
-  OperatingDays,
+  OperatingDays, SendQtyManual,
 } from './types';
 
 // ─── Factories ────────────────────────────────────────────────────────────────
@@ -529,4 +529,46 @@ export async function seedDefaults() {
   await supabase.from('inventory_stock').upsert(
     Object.entries(DEFAULT_INVENTORY_STOCK).map(([product_code, qty]) => ({ product_code, qty }))
   );
+}
+
+// ─── 送り数手動上書き ─────────────────────────────────────────────────
+
+export async function loadSendQtyManual(): Promise<SendQtyManual> {
+  const { data, error } = await supabase.from('send_qty_manual').select('*');
+  if (error) throw error;
+  const result: SendQtyManual = {};
+  for (const r of data ?? []) {
+    if (!result[r.product_code]) result[r.product_code] = {};
+    result[r.product_code][r.warehouse_code] = r.qty;
+  }
+  return result;
+}
+
+export async function upsertSendQtyManual(
+  productCode: string, warehouseCode: string, qty: number,
+) {
+  const { error } = await supabase.from('send_qty_manual').upsert(
+    { product_code: productCode, warehouse_code: warehouseCode, qty },
+    { onConflict: 'product_code,warehouse_code' },
+  );
+  if (error) throw error;
+}
+
+export async function deleteSendQtyManual(productCode: string, warehouseCode: string) {
+  const { error } = await supabase.from('send_qty_manual').delete()
+    .eq('product_code', productCode).eq('warehouse_code', warehouseCode);
+  if (error) throw error;
+}
+
+export async function replaceAllSendQtyManual(data: SendQtyManual) {
+  await supabase.from('send_qty_manual').delete().neq('product_code', '');
+  const rows: { product_code: string; warehouse_code: string; qty: number }[] = [];
+  for (const [pc, whMap] of Object.entries(data)) {
+    for (const [wc, qty] of Object.entries(whMap)) {
+      if (qty > 0) rows.push({ product_code: pc, warehouse_code: wc, qty });
+    }
+  }
+  if (rows.length > 0) {
+    await supabase.from('send_qty_manual').insert(rows);
+  }
 }

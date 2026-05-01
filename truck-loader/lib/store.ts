@@ -3,7 +3,7 @@ import type {
   Factory, Product, Warehouse, TruckType, PalletType,
   ProductionPlan, DailyProductionPlan, DistributionRatios,
   InventoryStock, LocationStock, WeeklyShippingSchedule, InTransitStock, PlannedSales,
-  OperatingDays,
+  OperatingDays, SendQtyManual,
 } from './types';
 import {
   DEFAULT_FACTORIES,
@@ -41,6 +41,7 @@ interface AppState {
   operatingDays: OperatingDays;
   inTransitStock: InTransitStock;
   plannedSales: PlannedSales;
+  sendQtyManual: SendQtyManual;
 
   // ─── アクション ───────────────────────────────────────────
   loadFromSupabase: () => Promise<void>;
@@ -68,6 +69,11 @@ interface AppState {
   importInTransitStockBulk: (stock: InTransitStock) => void;
   clearInTransitStock: () => void;
   confirmShipment: (sendQty: Record<string, Record<string, number>>) => void;
+
+  setSendQtyManual: (productCode: string, warehouseCode: string, qty: number) => void;
+  clearSendQtyManualCell: (productCode: string, warehouseCode: string) => void;
+  importSendQtyManualBulk: (data: SendQtyManual) => void;
+  clearSendQtyManual: () => void;
 
   addProduct: (product: Product) => Promise<void>;
   updateProduct: (product: Product) => Promise<void>;
@@ -101,6 +107,7 @@ const defaultState = {
   operatingDays: DEFAULT_OPERATING_DAYS,
   inTransitStock: {} as InTransitStock,
   plannedSales: {} as PlannedSales,
+  sendQtyManual: {} as SendQtyManual,
 };
 
 export const useAppStore = create<AppState>()((set, get) => ({
@@ -124,6 +131,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         operatingDays,
         inTransitStock,
         plannedSales,
+        sendQtyManual,
       ] = await Promise.all([
         db.loadFactories(),
         db.loadProducts(),
@@ -139,6 +147,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         db.loadOperatingDays(),
         db.loadInTransitStock(),
         db.loadPlannedSales(),
+        db.loadSendQtyManual().catch(() => ({} as SendQtyManual)),
       ]);
 
       // テーブルが空なら初期データを投入
@@ -168,6 +177,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         operatingDays,
         inTransitStock,
         plannedSales,
+        sendQtyManual,
       });
     } catch (err) {
       console.error('[Supabase] loadFromSupabase error:', err);
@@ -399,6 +409,37 @@ export const useAppStore = create<AppState>()((set, get) => ({
   removePalletType: (code) => {
     set((s) => ({ palletTypes: s.palletTypes.filter((p) => p.code !== code) }));
     db.deletePalletType(code).catch(console.error);
+  },
+
+  // ─── 送り数手動上書き ─────────────────────────────────────
+  setSendQtyManual: (productCode, warehouseCode, qty) => {
+    set((s) => ({
+      sendQtyManual: {
+        ...s.sendQtyManual,
+        [productCode]: { ...s.sendQtyManual[productCode], [warehouseCode]: qty },
+      },
+    }));
+    db.upsertSendQtyManual(productCode, warehouseCode, qty).catch(console.error);
+  },
+  clearSendQtyManualCell: (productCode, warehouseCode) => {
+    set((s) => {
+      const newMap = { ...s.sendQtyManual };
+      if (newMap[productCode]) {
+        const newWh = { ...newMap[productCode] };
+        delete newWh[warehouseCode];
+        newMap[productCode] = newWh;
+      }
+      return { sendQtyManual: newMap };
+    });
+    db.deleteSendQtyManual(productCode, warehouseCode).catch(console.error);
+  },
+  importSendQtyManualBulk: (data) => {
+    set(() => ({ sendQtyManual: data }));
+    db.replaceAllSendQtyManual(data).catch(console.error);
+  },
+  clearSendQtyManual: () => {
+    set(() => ({ sendQtyManual: {} }));
+    db.replaceAllSendQtyManual({}).catch(console.error);
   },
 
   // ─── リセット ─────────────────────────────────────────────

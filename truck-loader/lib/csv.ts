@@ -913,6 +913,93 @@ export function generateDistributionRatiosTemplate(
   return '\uFEFF' + [header, ...rows].join('\r\n');
 }
 
+// ─── 送り数 CSV ──────────────────────────────────────────────────────
+
+/**
+ * 送り数 CSV を解析する（拠点別在庫と同じワイド形式）。
+ * インポート結果は sendQtyManual に上書き格納する。
+ */
+export function parseSendQtyCSV(
+  text: string,
+  products: Product[],
+  warehouses: Warehouse[],
+  existing: Record<string, Record<string, number>> = {},
+): {
+  sendQty: Record<string, Record<string, number>>;
+  rows: { code: string; name: string; whQty: Record<string, number>; found: boolean }[];
+  warnings: string[];
+} {
+  const productMap = Object.fromEntries(products.map((p) => [normalizeProductCode(p.code), p]));
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  const warnings: string[] = [];
+
+  if (lines.length < 2) {
+    warnings.push('データが不足しています（ヘッダ行 + 1行以上のデータが必要です）');
+    return { sendQty: cloneMatrixStock(existing), rows: [], warnings };
+  }
+
+  const headers = parseCSVLine(lines[0]);
+  const { codeColIdx, nameColIdx, validWarehouses, warnings: hw } =
+    findWarehouseColumns(headers, warehouses);
+  warnings.push(...hw);
+
+  if (codeColIdx === -1) {
+    warnings.push('「製品コード」列が見つかりませんでした');
+    return { sendQty: cloneMatrixStock(existing), rows: [], warnings };
+  }
+  if (validWarehouses.length === 0) {
+    warnings.push('拠点コード/拠点名の列が見つかりませんでした');
+    return { sendQty: cloneMatrixStock(existing), rows: [], warnings };
+  }
+
+  const sendQty: Record<string, Record<string, number>> = cloneMatrixStock(existing);
+  const rows: { code: string; name: string; whQty: Record<string, number>; found: boolean }[] = [];
+
+  for (let r = 1; r < lines.length; r++) {
+    const cells = parseCSVLine(lines[r]);
+    const code = normalizeProductCode(cells[codeColIdx] ?? '');
+    if (!code) continue;
+    const found = !!productMap[code];
+    if (!found) warnings.push(`行${r + 1}: 製品コード「${code}」はマスタに存在しません`);
+
+    sendQty[code] = { ...(sendQty[code] ?? {}) };
+    const whQty: Record<string, number> = {};
+    for (const { wc, colIdx } of validWarehouses) {
+      const qty = parseInt(cells[colIdx] ?? '', 10) || 0;
+      sendQty[code][wc] = qty;
+      whQty[wc] = qty;
+    }
+    const name = nameColIdx !== -1
+      ? (cells[nameColIdx]?.trim() ?? '')
+      : (productMap[code]?.name ?? code);
+    rows.push({ code, name, whQty, found });
+  }
+
+  return { sendQty, rows, warnings };
+}
+
+/**
+ * 送り数 CSV を生成する。
+ * manual が設定されているセルは手動値、未設定は自動計算値を出力する。
+ */
+export function generateSendQtyCSV(
+  products: Product[],
+  warehouses: Warehouse[],
+  calcQty: Record<string, Record<string, number>>,
+  manual: Record<string, Record<string, number>> = {},
+): string {
+  const whCodes = warehouses.map((w) => w.code);
+  const header = ['製品コード', '製品名', ...whCodes].join(',');
+  const rows = products.map((p) => {
+    const qtys = whCodes.map((wc) => {
+      const m = manual[p.code]?.[wc];
+      return m !== undefined && m > 0 ? m : (calcQty[p.code]?.[wc] ?? 0);
+    });
+    return [p.code, `"${p.name}"`, ...qtys].join(',');
+  });
+  return '﻿' + [header, ...rows].join('\r\n');
+}
+
 /** CSV テキストをファイルとしてダウンロード */
 export function downloadCSV(content: string, filename: string): void {
   const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
