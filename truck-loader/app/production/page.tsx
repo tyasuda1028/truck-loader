@@ -69,6 +69,20 @@ export default function ProductionPage() {
   const [sendQtyPreview,  setSendQtyPreview]  = useState<ReturnType<typeof parseSendQtyCSV> | null>(null);
   const [sendQtyImported, setSendQtyImported] = useState(false);
 
+  // ─── フィルター（タブごと） ──────────────────────────────────────────
+  type FilterState = { factory: string; code: string; name: string };
+  const emptyFilter = (): FilterState => ({ factory: '', code: '', name: '' });
+  const [filters, setFilters] = useState<Record<Tab, FilterState>>({
+    production: emptyFilter(),
+    location:   emptyFilter(),
+    transit:    emptyFilter(),
+    sales:      emptyFilter(),
+    ratio:      emptyFilter(),
+    sendqty:    emptyFilter(),
+  });
+  const setFilter = (partial: Partial<FilterState>) =>
+    setFilters((prev) => ({ ...prev, [activeTab]: { ...prev[activeTab], ...partial } }));
+
   // 自動計算送り数（手動上書き前）
   const sendQtyCalc = useMemo(
     () => calcSendQty(products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales),
@@ -98,6 +112,17 @@ export default function ProductionPage() {
   const activeWarehouses = warehouses.filter((wh) =>
     products.some((p) => (distributionRatios[p.code]?.[wh.code] ?? 0) > 0),
   );
+
+  // フィルター済み製品リスト
+  const filteredProducts = useMemo(() => {
+    const f = filters[activeTab];
+    return products.filter((p) => {
+      if (f.factory && (p.factoryCode ?? 'F001') !== f.factory) return false;
+      if (f.code && !p.code.toLowerCase().includes(f.code.toLowerCase())) return false;
+      if (f.name && !p.name.toLowerCase().includes(f.name.toLowerCase())) return false;
+      return true;
+    });
+  }, [products, filters, activeTab]);
 
   // ─── 一括クリア ──────────────────────────────────────────────────────
   const handleClear = (tab: Tab) => {
@@ -222,6 +247,51 @@ export default function ProductionPage() {
         )}
       </div>
 
+      {/* ─── フィルターバー（全タブ共通） ─── */}
+      <div className="flex flex-wrap items-center gap-2 mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+        <span className="text-xs font-semibold text-slate-500 shrink-0">絞込：</span>
+        {/* 配送元（工場） */}
+        <select
+          value={filters[activeTab].factory}
+          onChange={(e) => setFilter({ factory: e.target.value })}
+          className="text-xs border border-slate-200 rounded px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+        >
+          <option value="">配送元：すべて</option>
+          {factories.map((f) => (
+            <option key={f.code} value={f.code}>{f.code}　{f.name}</option>
+          ))}
+        </select>
+        {/* 製品コード */}
+        <input
+          type="text"
+          value={filters[activeTab].code}
+          onChange={(e) => setFilter({ code: e.target.value })}
+          placeholder="製品コードで絞込"
+          className="text-xs border border-slate-200 rounded px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 w-36"
+        />
+        {/* 製品名 */}
+        <input
+          type="text"
+          value={filters[activeTab].name}
+          onChange={(e) => setFilter({ name: e.target.value })}
+          placeholder="製品名で絞込"
+          className="text-xs border border-slate-200 rounded px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 w-36"
+        />
+        {(filters[activeTab].factory || filters[activeTab].code || filters[activeTab].name) && (
+          <button
+            onClick={() => setFilter(emptyFilter())}
+            className="text-xs px-2 py-1.5 text-slate-400 hover:text-red-500 transition-colors"
+          >
+            ✕ クリア
+          </button>
+        )}
+        {filteredProducts.length < products.length && (
+          <span className="ml-auto text-xs text-slate-400">
+            {filteredProducts.length} / {products.length} 製品を表示中
+          </span>
+        )}
+      </div>
+
       {/* ── タブ①：週間生産数 ── */}
       {activeTab === 'production' && (
         <div className="flex flex-col gap-6">
@@ -341,7 +411,7 @@ export default function ProductionPage() {
               </thead>
               <tbody>
                 {factories.map((factory) => {
-                  const factoryProducts = products.filter(
+                  const factoryProducts = filteredProducts.filter(
                     (p) => (p.factoryCode ?? 'F001') === factory.code,
                   );
                   if (factoryProducts.length === 0) return null;
@@ -402,8 +472,8 @@ export default function ProductionPage() {
                   );
                 })}
                 {(() => {
-                  const totalQty  = products.reduce((s, p) => s + (productionPlan[p.code] ?? 0), 0);
-                  const totalPals = products.reduce((s, p) => {
+                  const totalQty  = filteredProducts.reduce((s, p) => s + (productionPlan[p.code] ?? 0), 0);
+                  const totalPals = filteredProducts.reduce((s, p) => {
                     const qty = productionPlan[p.code] ?? 0;
                     return s + (qty > 0 ? Math.ceil(qty / p.capacityPerPallet) : 0);
                   }, 0);
@@ -544,7 +614,7 @@ export default function ProductionPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {products.map((p) => (
+                  {filteredProducts.map((p) => (
                     <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
                       <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
                       <td className="px-3 py-1.5 sticky left-32 bg-white z-10 border-r border-slate-200">
@@ -591,7 +661,7 @@ export default function ProductionPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {products.map((p) => {
+                    {filteredProducts.map((p) => {
                       const total = activeWarehouses.reduce((s, wh) => s + (sendQty[p.code]?.[wh.code] ?? 0), 0);
                       return (
                         <tr key={p.code} className="border-t border-slate-100">
@@ -743,7 +813,7 @@ export default function ProductionPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {products.map((p) => {
+                  {filteredProducts.map((p) => {
                     const rowTotal = warehouses.reduce((s, wh) => s + (inTransitStock[p.code]?.[wh.code] ?? 0), 0);
                     return (
                       <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
@@ -778,7 +848,7 @@ export default function ProductionPage() {
                   <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold">
                     <td className="px-3 py-2 sticky left-0 bg-slate-50 border-r border-slate-200 text-slate-600">合計</td>
                     {warehouses.map((wh) => {
-                      const total = products.reduce((s, p) => s + (inTransitStock[p.code]?.[wh.code] ?? 0), 0);
+                      const total = filteredProducts.reduce((s, p) => s + (inTransitStock[p.code]?.[wh.code] ?? 0), 0);
                       return (
                         <td key={wh.code} className="px-2 py-2 text-center text-amber-600">
                           {total > 0 ? `${total.toLocaleString()}個` : '—'}
@@ -786,9 +856,10 @@ export default function ProductionPage() {
                       );
                     })}
                     <td className="px-3 py-2 text-right text-amber-600">
-                      {products.reduce((s, p) => s + warehouses.reduce((ss, wh) => ss + (inTransitStock[p.code]?.[wh.code] ?? 0), 0), 0) > 0
-                        ? `${products.reduce((s, p) => s + warehouses.reduce((ss, wh) => ss + (inTransitStock[p.code]?.[wh.code] ?? 0), 0), 0).toLocaleString()}個`
-                        : '—'}
+                      {(() => {
+                        const grand = filteredProducts.reduce((s, p) => s + warehouses.reduce((ss, wh) => ss + (inTransitStock[p.code]?.[wh.code] ?? 0), 0), 0);
+                        return grand > 0 ? `${grand.toLocaleString()}個` : '—';
+                      })()}
                     </td>
                   </tr>
                 </tbody>
@@ -918,7 +989,7 @@ export default function ProductionPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {products.map((p) => (
+                  {filteredProducts.map((p) => (
                     <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
                       <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
                       <td className="px-3 py-1.5 sticky left-32 bg-white z-10 border-r border-slate-200">
@@ -1079,7 +1150,7 @@ export default function ProductionPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {products.map((p) => {
+                  {filteredProducts.map((p) => {
                     const rowTotal = warehouses.reduce(
                       (s, wh) => s + (distributionRatios[p.code]?.[wh.code] ?? 0), 0,
                     );
@@ -1137,7 +1208,7 @@ export default function ProductionPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {products.map((p) => (
+                    {filteredProducts.map((p) => (
                       <tr key={p.code} className="border-t border-slate-100">
                         <td className="px-3 py-1.5 sticky left-0 bg-white border-r border-slate-200">
                           <div className="flex items-center gap-1.5">
@@ -1312,7 +1383,7 @@ export default function ProductionPage() {
                   </thead>
                   <tbody>
                     {factories.map((factory) => {
-                      const factoryProducts = products.filter(
+                      const factoryProducts = filteredProducts.filter(
                         (p) => (p.factoryCode ?? 'F001') === factory.code,
                       );
                       if (factoryProducts.length === 0) return null;
@@ -1410,8 +1481,8 @@ export default function ProductionPage() {
                     <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold">
                       <td colSpan={2} className="px-3 py-2 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 text-slate-600">総合計</td>
                       {warehouses.map((wh) => {
-                        const total = products.reduce((s, p) => s + (sendQty[p.code]?.[wh.code] ?? 0), 0);
-                        const hasM  = products.some((p) => (sendQtyManual[p.code]?.[wh.code] ?? 0) > 0);
+                        const total = filteredProducts.reduce((s, p) => s + (sendQty[p.code]?.[wh.code] ?? 0), 0);
+                        const hasM  = filteredProducts.some((p) => (sendQtyManual[p.code]?.[wh.code] ?? 0) > 0);
                         return (
                           <td key={wh.code} className={clsx('px-2 py-2 text-center', hasM ? 'text-blue-600' : 'text-slate-600')}>
                             {total > 0 ? `${total.toLocaleString()}個` : '—'}
@@ -1420,7 +1491,7 @@ export default function ProductionPage() {
                       })}
                       <td className="px-3 py-2 text-right text-slate-700">
                         {(() => {
-                          const grand = products.reduce((s, p) => s + warehouses.reduce((ss, wh) => ss + (sendQty[p.code]?.[wh.code] ?? 0), 0), 0);
+                          const grand = filteredProducts.reduce((s, p) => s + warehouses.reduce((ss, wh) => ss + (sendQty[p.code]?.[wh.code] ?? 0), 0), 0);
                           return grand > 0 ? `${grand.toLocaleString()}個` : '—';
                         })()}
                       </td>
