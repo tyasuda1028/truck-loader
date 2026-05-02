@@ -157,6 +157,7 @@ export default function ProductionPage() {
     setFilters((prev) => ({ ...prev, [activeTab]: { ...prev[activeTab], ...partial } }));
 
   const [warehouseGroupFilter, setWarehouseGroupFilter] = useState<'all' | '東' | '西'>('all');
+  const [clearFlash, setClearFlash] = useState<string | null>(null);
 
   // 自動計算送り数（手動上書き前）
   const sendQtyCalc = useMemo(
@@ -218,12 +219,24 @@ export default function ProductionPage() {
   const weekDays   = useMemo(() => _weekDates(weekMonday), [weekMonday]);
 
   // ─── 一括クリア ──────────────────────────────────────────────────────
+  const CLEAR_LABELS: Record<Tab, string> = {
+    production: '週間生産数',
+    location:   '拠点別在庫数',
+    transit:    '輸送中数量',
+    sales:      '予定出荷数',
+    ratio:      '配分比率',
+    sendqty:    '送り数（手動値）',
+  };
   const handleClear = (tab: Tab) => {
+    const label = CLEAR_LABELS[tab];
+    if (!window.confirm(`「${label}」のデータをすべてクリアします。よろしいですか？`)) return;
     if (tab === 'production') clearProductionPlan();
     if (tab === 'location')   clearLocationStock();
     if (tab === 'transit')    clearInTransitStock();
     if (tab === 'sales')      clearPlannedSales();
     if (tab === 'sendqty')    clearSendQtyManual();
+    setClearFlash(`「${label}」をクリアしました`);
+    setTimeout(() => setClearFlash(null), 3000);
   };
 
   // ─── CSV ハンドラ ────────────────────────────────────────────────────
@@ -304,6 +317,13 @@ export default function ProductionPage() {
 
   return (
     <div className="max-w-screen-xl mx-auto px-4 py-6">
+      {/* クリア完了トースト */}
+      {clearFlash && (
+        <div className="fixed top-4 right-4 z-50 px-4 py-3 bg-emerald-600 text-white text-sm rounded-lg shadow-lg flex items-center gap-2 animate-pulse">
+          <span>✓</span>
+          <span>{clearFlash}</span>
+        </div>
+      )}
       <div className="mb-6">
         <h1 className="text-xl font-bold text-slate-800">配送計画入力</h1>
         <p className="text-sm text-slate-500 mt-0.5">
@@ -1736,9 +1756,9 @@ export default function ProductionPage() {
                         (s, wh) => s + factoryProducts.reduce((ss, p) => ss + (sendQty[p.code]?.[wh.code] ?? 0), 0), 0,
                       );
                       return (
-                        <>
+                        <React.Fragment key={factory.code}>
                           {/* 工場ヘッダー行 */}
-                          <tr key={`hdr-${factory.code}`} className="bg-indigo-50 border-t-2 border-indigo-100">
+                          <tr className="bg-indigo-50 border-t-2 border-indigo-100">
                             <td colSpan={2 + displayWarehouses.length + 1} className="px-4 py-2 sticky left-0">
                               <div className="flex items-center gap-2">
                                 <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">{factory.code}</span>
@@ -1819,7 +1839,7 @@ export default function ProductionPage() {
                               {factoryTotal > 0 ? `${factoryTotal.toLocaleString()}個` : '—'}
                             </td>
                           </tr>
-                        </>
+                        </React.Fragment>
                       );
                     })}
                     {/* 総合計行 */}
