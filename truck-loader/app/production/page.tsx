@@ -156,6 +156,8 @@ export default function ProductionPage() {
   const setFilter = (partial: Partial<FilterState>) =>
     setFilters((prev) => ({ ...prev, [activeTab]: { ...prev[activeTab], ...partial } }));
 
+  const [warehouseGroupFilter, setWarehouseGroupFilter] = useState<'all' | '東' | '西'>('all');
+
   // 自動計算送り数（手動上書き前）
   const sendQtyCalc = useMemo(
     () => calcSendQty(products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales),
@@ -184,6 +186,15 @@ export default function ProductionPage() {
 
   const activeWarehouses = warehouses.filter((wh) =>
     products.some((p) => (distributionRatios[p.code]?.[wh.code] ?? 0) > 0),
+  );
+
+  const displayWarehouses = useMemo(
+    () => warehouseGroupFilter === 'all' ? warehouses : warehouses.filter(wh => wh.group === warehouseGroupFilter),
+    [warehouses, warehouseGroupFilter],
+  );
+  const displayActiveWarehouses = useMemo(
+    () => displayWarehouses.filter(wh => products.some(p => (distributionRatios[p.code]?.[wh.code] ?? 0) > 0)),
+    [displayWarehouses, products, distributionRatios],
   );
 
   // フィルター済み製品リスト
@@ -379,10 +390,28 @@ export default function ProductionPage() {
           </button>
         )}
         {filteredProducts.length < products.length && (
-          <span className="ml-auto text-xs text-slate-400">
+          <span className="text-xs text-slate-400">
             {filteredProducts.length} / {products.length} 製品を表示中
           </span>
         )}
+        {/* 拠点グループ切替 */}
+        <div className="flex items-center gap-1 ml-auto pl-3 border-l border-slate-300">
+          <span className="text-xs text-slate-500 shrink-0">拠点：</span>
+          {(['all', '東', '西'] as const).map((g) => (
+            <button
+              key={g}
+              onClick={() => setWarehouseGroupFilter(g)}
+              className={clsx(
+                'text-xs px-2.5 py-1 rounded transition-colors border',
+                warehouseGroupFilter === g
+                  ? 'bg-brand-600 text-white border-brand-600'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50',
+              )}
+            >
+              {g === 'all' ? '全拠点' : `${g}グループ`}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── タブ①：週間生産数 ── */}
@@ -818,13 +847,33 @@ export default function ProductionPage() {
             <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
               <table className="text-xs border-collapse w-full">
                 <thead>
+                  {/* Row 1: group headers */}
                   <tr className="bg-slate-50">
-                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
-                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
-                    {warehouses.map((wh) => (
-                      <th key={wh.code} className="px-2 py-2.5 text-center font-semibold text-slate-500 min-w-[80px]">
-                        <div className="font-bold text-slate-400">{wh.code}</div>
-                        <div className="text-[10px] text-slate-500 leading-tight">{wh.name.slice(0, 5)}</div>
+                    <th rowSpan={2} className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
+                    <th rowSpan={2} className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
+                    {(['東', '西'] as const).map((g) => {
+                      const groupWarehouses = displayWarehouses.filter(wh => wh.group === g);
+                      if (groupWarehouses.length === 0) return null;
+                      return (
+                        <th key={g} colSpan={groupWarehouses.length}
+                          className={clsx(
+                            'px-2 py-1.5 text-center text-xs font-bold border-b border-slate-200',
+                            g === '東' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700',
+                          )}>
+                          {g}グループ
+                        </th>
+                      );
+                    })}
+                  </tr>
+                  {/* Row 2: individual warehouse columns */}
+                  <tr className="bg-slate-50">
+                    {displayWarehouses.map((wh) => (
+                      <th key={wh.code} className={clsx(
+                        'px-2 py-1.5 text-center font-semibold text-slate-500 min-w-[72px]',
+                        wh.group === '東' ? 'bg-blue-50/50' : 'bg-orange-50/50',
+                      )}>
+                        <div className="font-bold text-slate-500 text-[10px]">{wh.code}</div>
+                        <div className="text-[9px] text-slate-400 leading-tight">{wh.name.slice(0, 4)}</div>
                       </th>
                     ))}
                   </tr>
@@ -839,7 +888,7 @@ export default function ProductionPage() {
                           <span className="font-medium text-slate-700">{p.name}</span>
                         </div>
                       </td>
-                      {warehouses.map((wh) => {
+                      {displayWarehouses.map((wh) => {
                         const stock = locationStock[p.code]?.[wh.code] ?? 0;
                         return (
                           <td key={wh.code} className="px-1 py-1.5 text-center">
@@ -870,7 +919,7 @@ export default function ProductionPage() {
                   <thead>
                     <tr className="bg-slate-50">
                       <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 border-r border-slate-200 min-w-[180px]">製品</th>
-                      {activeWarehouses.map((wh) => (
+                      {displayActiveWarehouses.map((wh) => (
                         <th key={wh.code} className="px-2 py-2 text-center font-semibold text-slate-500 min-w-[64px]">{wh.code}</th>
                       ))}
                       <th className="px-3 py-2 text-right font-semibold text-slate-500 min-w-[80px]">合計送り数</th>
@@ -878,7 +927,7 @@ export default function ProductionPage() {
                   </thead>
                   <tbody>
                     {filteredProducts.map((p) => {
-                      const total = activeWarehouses.reduce((s, wh) => s + (sendQty[p.code]?.[wh.code] ?? 0), 0);
+                      const total = displayActiveWarehouses.reduce((s, wh) => s + (sendQty[p.code]?.[wh.code] ?? 0), 0);
                       return (
                         <tr key={p.code} className="border-t border-slate-100">
                           <td className="px-3 py-1.5 sticky left-0 bg-white border-r border-slate-200">
@@ -887,7 +936,7 @@ export default function ProductionPage() {
                               {p.name}
                             </div>
                           </td>
-                          {activeWarehouses.map((wh) => {
+                          {displayActiveWarehouses.map((wh) => {
                             const qty = sendQty[p.code]?.[wh.code] ?? 0;
                             return (
                               <td key={wh.code} className="px-2 py-1.5 text-center text-slate-600">
@@ -1016,21 +1065,41 @@ export default function ProductionPage() {
             <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
               <table className="text-xs border-collapse w-full">
                 <thead>
+                  {/* Row 1: group headers */}
                   <tr className="bg-slate-50">
-                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
-                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
-                    {warehouses.map((wh) => (
-                      <th key={wh.code} className="px-2 py-2.5 text-center font-semibold text-slate-500 min-w-[80px]">
-                        <div className="font-bold text-slate-400">{wh.code}</div>
-                        <div className="text-[10px] text-slate-500 leading-tight">{wh.name.slice(0, 5)}</div>
+                    <th rowSpan={2} className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
+                    <th rowSpan={2} className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
+                    {(['東', '西'] as const).map((g) => {
+                      const groupWarehouses = displayWarehouses.filter(wh => wh.group === g);
+                      if (groupWarehouses.length === 0) return null;
+                      return (
+                        <th key={g} colSpan={groupWarehouses.length}
+                          className={clsx(
+                            'px-2 py-1.5 text-center text-xs font-bold border-b border-slate-200',
+                            g === '東' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700',
+                          )}>
+                          {g}グループ
+                        </th>
+                      );
+                    })}
+                    <th rowSpan={2} className="px-3 py-2 text-right font-semibold text-slate-500 min-w-[80px] bg-slate-50">合計</th>
+                  </tr>
+                  {/* Row 2: individual warehouse columns */}
+                  <tr className="bg-slate-50">
+                    {displayWarehouses.map((wh) => (
+                      <th key={wh.code} className={clsx(
+                        'px-2 py-1.5 text-center font-semibold text-slate-500 min-w-[72px]',
+                        wh.group === '東' ? 'bg-blue-50/50' : 'bg-orange-50/50',
+                      )}>
+                        <div className="font-bold text-slate-500 text-[10px]">{wh.code}</div>
+                        <div className="text-[9px] text-slate-400 leading-tight">{wh.name.slice(0, 4)}</div>
                       </th>
                     ))}
-                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500 min-w-[80px]">合計</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredProducts.map((p) => {
-                    const rowTotal = warehouses.reduce((s, wh) => s + (inTransitStock[p.code]?.[wh.code] ?? 0), 0);
+                    const rowTotal = displayWarehouses.reduce((s, wh) => s + (inTransitStock[p.code]?.[wh.code] ?? 0), 0);
                     return (
                       <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
                         <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
@@ -1040,7 +1109,7 @@ export default function ProductionPage() {
                             <span className="font-medium text-slate-700">{p.name}</span>
                           </div>
                         </td>
-                        {warehouses.map((wh) => {
+                        {displayWarehouses.map((wh) => {
                           const qty = inTransitStock[p.code]?.[wh.code] ?? 0;
                           return (
                             <td key={wh.code} className="px-1 py-1.5 text-center">
@@ -1063,7 +1132,7 @@ export default function ProductionPage() {
                   })}
                   <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold">
                     <td className="px-3 py-2 sticky left-0 bg-slate-50 border-r border-slate-200 text-slate-600">合計</td>
-                    {warehouses.map((wh) => {
+                    {displayWarehouses.map((wh) => {
                       const total = filteredProducts.reduce((s, p) => s + (inTransitStock[p.code]?.[wh.code] ?? 0), 0);
                       return (
                         <td key={wh.code} className="px-2 py-2 text-center text-amber-600">
@@ -1073,7 +1142,7 @@ export default function ProductionPage() {
                     })}
                     <td className="px-3 py-2 text-right text-amber-600">
                       {(() => {
-                        const grand = filteredProducts.reduce((s, p) => s + warehouses.reduce((ss, wh) => ss + (inTransitStock[p.code]?.[wh.code] ?? 0), 0), 0);
+                        const grand = filteredProducts.reduce((s, p) => s + displayWarehouses.reduce((ss, wh) => ss + (inTransitStock[p.code]?.[wh.code] ?? 0), 0), 0);
                         return grand > 0 ? `${grand.toLocaleString()}個` : '—';
                       })()}
                     </td>
@@ -1193,13 +1262,33 @@ export default function ProductionPage() {
             <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
               <table className="text-xs border-collapse w-full">
                 <thead>
+                  {/* Row 1: group headers */}
                   <tr className="bg-slate-50">
-                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
-                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
-                    {warehouses.map((wh) => (
-                      <th key={wh.code} className="px-2 py-2.5 text-center font-semibold text-slate-500 min-w-[80px]">
-                        <div className="font-bold text-slate-400">{wh.code}</div>
-                        <div className="text-[10px] text-slate-500 leading-tight">{wh.name.slice(0, 5)}</div>
+                    <th rowSpan={2} className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
+                    <th rowSpan={2} className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
+                    {(['東', '西'] as const).map((g) => {
+                      const groupWarehouses = displayWarehouses.filter(wh => wh.group === g);
+                      if (groupWarehouses.length === 0) return null;
+                      return (
+                        <th key={g} colSpan={groupWarehouses.length}
+                          className={clsx(
+                            'px-2 py-1.5 text-center text-xs font-bold border-b border-slate-200',
+                            g === '東' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700',
+                          )}>
+                          {g}グループ
+                        </th>
+                      );
+                    })}
+                  </tr>
+                  {/* Row 2: individual warehouse columns */}
+                  <tr className="bg-slate-50">
+                    {displayWarehouses.map((wh) => (
+                      <th key={wh.code} className={clsx(
+                        'px-2 py-1.5 text-center font-semibold text-slate-500 min-w-[72px]',
+                        wh.group === '東' ? 'bg-blue-50/50' : 'bg-orange-50/50',
+                      )}>
+                        <div className="font-bold text-slate-500 text-[10px]">{wh.code}</div>
+                        <div className="text-[9px] text-slate-400 leading-tight">{wh.name.slice(0, 4)}</div>
                       </th>
                     ))}
                   </tr>
@@ -1214,7 +1303,7 @@ export default function ProductionPage() {
                           <span className="font-medium text-slate-700">{p.name}</span>
                         </div>
                       </td>
-                      {warehouses.map((wh) => {
+                      {displayWarehouses.map((wh) => {
                         const qty = plannedSales[p.code]?.[wh.code] ?? 0;
                         return (
                           <td key={wh.code} className="px-1 py-1.5 text-center">
@@ -1353,21 +1442,41 @@ export default function ProductionPage() {
             <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
               <table className="text-xs border-collapse w-full">
                 <thead>
+                  {/* Row 1: group headers */}
                   <tr className="bg-slate-50">
-                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
-                    <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
-                    {warehouses.map((wh) => (
-                      <th key={wh.code} className="px-2 py-2.5 text-center font-semibold text-slate-500 min-w-[70px]">
-                        <div className="font-bold text-slate-400">{wh.code}</div>
-                        <div className="text-[10px] text-slate-500 leading-tight">{wh.name.slice(0, 5)}</div>
+                    <th rowSpan={2} className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
+                    <th rowSpan={2} className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
+                    {(['東', '西'] as const).map((g) => {
+                      const groupWarehouses = displayWarehouses.filter(wh => wh.group === g);
+                      if (groupWarehouses.length === 0) return null;
+                      return (
+                        <th key={g} colSpan={groupWarehouses.length}
+                          className={clsx(
+                            'px-2 py-1.5 text-center text-xs font-bold border-b border-slate-200',
+                            g === '東' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700',
+                          )}>
+                          {g}グループ
+                        </th>
+                      );
+                    })}
+                    <th rowSpan={2} className="px-3 py-2 text-right font-semibold text-slate-500 min-w-[60px] bg-slate-50">合計%</th>
+                  </tr>
+                  {/* Row 2: individual warehouse columns */}
+                  <tr className="bg-slate-50">
+                    {displayWarehouses.map((wh) => (
+                      <th key={wh.code} className={clsx(
+                        'px-2 py-1.5 text-center font-semibold text-slate-500 min-w-[72px]',
+                        wh.group === '東' ? 'bg-blue-50/50' : 'bg-orange-50/50',
+                      )}>
+                        <div className="font-bold text-slate-500 text-[10px]">{wh.code}</div>
+                        <div className="text-[9px] text-slate-400 leading-tight">{wh.name.slice(0, 4)}</div>
                       </th>
                     ))}
-                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500 min-w-[60px]">合計%</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredProducts.map((p) => {
-                    const rowTotal = warehouses.reduce(
+                    const rowTotal = displayWarehouses.reduce(
                       (s, wh) => s + (distributionRatios[p.code]?.[wh.code] ?? 0), 0,
                     );
                     const isOver = rowTotal > 100;
@@ -1380,7 +1489,7 @@ export default function ProductionPage() {
                             <span className="font-medium text-slate-700">{p.name}</span>
                           </div>
                         </td>
-                        {warehouses.map((wh) => {
+                        {displayWarehouses.map((wh) => {
                           const ratio = distributionRatios[p.code]?.[wh.code] ?? 0;
                           return (
                             <td key={wh.code} className="px-1 py-1.5 text-center">
@@ -1418,7 +1527,7 @@ export default function ProductionPage() {
                   <thead>
                     <tr className="bg-slate-50">
                       <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 border-r border-slate-200">製品</th>
-                      {activeWarehouses.map((wh) => (
+                      {displayActiveWarehouses.map((wh) => (
                         <th key={wh.code} className="px-2 py-2 text-center font-semibold text-slate-500 min-w-[64px]">{wh.code}</th>
                       ))}
                     </tr>
@@ -1432,7 +1541,7 @@ export default function ProductionPage() {
                             {p.name}
                           </div>
                         </td>
-                        {activeWarehouses.map((wh) => {
+                        {displayActiveWarehouses.map((wh) => {
                           const qty     = sendQty[p.code]?.[wh.code] ?? 0;
                           const pallets = qty > 0 ? Math.ceil(qty / p.capacityPerPallet) : 0;
                           return (
@@ -1445,7 +1554,7 @@ export default function ProductionPage() {
                     ))}
                     <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold">
                       <td className="px-3 py-2 sticky left-0 bg-slate-50 border-r border-slate-200 text-slate-600">合計パレット</td>
-                      {activeWarehouses.map((wh) => {
+                      {displayActiveWarehouses.map((wh) => {
                         const plan = plans[wh.code];
                         return (
                           <td key={wh.code} className="px-2 py-2 text-center text-brand-600">
@@ -1456,7 +1565,7 @@ export default function ProductionPage() {
                     </tr>
                     <tr className="border-t border-slate-200 bg-slate-50">
                       <td className="px-3 py-2 sticky left-0 bg-slate-50 border-r border-slate-200 text-slate-600 font-semibold">必要台数</td>
-                      {activeWarehouses.map((wh) => {
+                      {displayActiveWarehouses.map((wh) => {
                         const plan = plans[wh.code];
                         return (
                           <td key={wh.code} className="px-2 py-2 text-center text-slate-700 font-semibold">
@@ -1585,32 +1694,52 @@ export default function ProductionPage() {
               <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
                 <table className="text-xs border-collapse w-full">
                   <thead>
-                    <tr className="bg-slate-50">
-                      <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
-                      <th className="px-3 py-2.5 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[160px]">製品名</th>
-                      {warehouses.map((wh) => (
-                        <th key={wh.code} className="px-1 py-2.5 text-center font-semibold text-slate-500 min-w-[90px]">
-                          <div className="font-bold text-slate-400 text-[10px]">{wh.code}</div>
-                          <div className="text-[9px] text-slate-400 leading-tight">{wh.name.slice(0, 5)}</div>
+                  {/* Row 1: group headers */}
+                  <tr className="bg-slate-50">
+                    <th rowSpan={2} className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
+                    <th rowSpan={2} className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[160px]">製品名</th>
+                    {(['東', '西'] as const).map((g) => {
+                      const groupWarehouses = displayWarehouses.filter(wh => wh.group === g);
+                      if (groupWarehouses.length === 0) return null;
+                      return (
+                        <th key={g} colSpan={groupWarehouses.length}
+                          className={clsx(
+                            'px-2 py-1.5 text-center text-xs font-bold border-b border-slate-200',
+                            g === '東' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700',
+                          )}>
+                          {g}グループ
                         </th>
-                      ))}
-                      <th className="px-3 py-2.5 text-right font-semibold text-slate-500 min-w-[72px]">合計</th>
-                    </tr>
-                  </thead>
+                      );
+                    })}
+                    <th rowSpan={2} className="px-3 py-2 text-right font-semibold text-slate-500 min-w-[72px] bg-slate-50">合計</th>
+                  </tr>
+                  {/* Row 2: individual warehouse columns */}
+                  <tr className="bg-slate-50">
+                    {displayWarehouses.map((wh) => (
+                      <th key={wh.code} className={clsx(
+                        'px-2 py-1.5 text-center font-semibold text-slate-500 min-w-[72px]',
+                        wh.group === '東' ? 'bg-blue-50/50' : 'bg-orange-50/50',
+                      )}>
+                        <div className="font-bold text-slate-500 text-[10px]">{wh.code}</div>
+                        <div className="text-[9px] text-slate-400 leading-tight">{wh.name.slice(0, 4)}</div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
                   <tbody>
                     {factories.map((factory) => {
                       const factoryProducts = filteredProducts.filter(
                         (p) => (p.factoryCode ?? 'F001') === factory.code,
                       );
                       if (factoryProducts.length === 0) return null;
-                      const factoryTotal = warehouses.reduce(
+                      const factoryTotal = displayWarehouses.reduce(
                         (s, wh) => s + factoryProducts.reduce((ss, p) => ss + (sendQty[p.code]?.[wh.code] ?? 0), 0), 0,
                       );
                       return (
                         <>
                           {/* 工場ヘッダー行 */}
                           <tr key={`hdr-${factory.code}`} className="bg-indigo-50 border-t-2 border-indigo-100">
-                            <td colSpan={2 + warehouses.length + 1} className="px-4 py-2 sticky left-0">
+                            <td colSpan={2 + displayWarehouses.length + 1} className="px-4 py-2 sticky left-0">
                               <div className="flex items-center gap-2">
                                 <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">{factory.code}</span>
                                 <span className="text-sm font-semibold text-indigo-800">{factory.name}</span>
@@ -1620,8 +1749,8 @@ export default function ProductionPage() {
                           </tr>
                           {/* 製品行 */}
                           {factoryProducts.map((p) => {
-                            const rowTotal = warehouses.reduce((s, wh) => s + (sendQty[p.code]?.[wh.code] ?? 0), 0);
-                            const hasManual = warehouses.some((wh) => (sendQtyManual[p.code]?.[wh.code] ?? 0) > 0);
+                            const rowTotal = displayWarehouses.reduce((s, wh) => s + (sendQty[p.code]?.[wh.code] ?? 0), 0);
+                            const hasManual = displayWarehouses.some((wh) => (sendQtyManual[p.code]?.[wh.code] ?? 0) > 0);
                             return (
                               <tr key={p.code} className={clsx('border-t border-slate-100 hover:bg-slate-50', hasManual && 'bg-blue-50/30')}>
                                 <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
@@ -1631,7 +1760,7 @@ export default function ProductionPage() {
                                     <span className="font-medium text-slate-700">{p.name}</span>
                                   </div>
                                 </td>
-                                {warehouses.map((wh) => {
+                                {displayWarehouses.map((wh) => {
                                   const calcVal = sendQtyCalc[p.code]?.[wh.code] ?? 0;
                                   const manualVal = sendQtyManual[p.code]?.[wh.code];
                                   const isManual = manualVal !== undefined && manualVal > 0;
@@ -1677,7 +1806,7 @@ export default function ProductionPage() {
                             <td colSpan={2} className="px-4 py-1.5 sticky left-0 bg-indigo-50/60 z-10 border-r border-slate-200 text-xs text-indigo-500 font-semibold">
                               {factory.name} 小計
                             </td>
-                            {warehouses.map((wh) => {
+                            {displayWarehouses.map((wh) => {
                               const subtotal = factoryProducts.reduce((s, p) => s + (sendQty[p.code]?.[wh.code] ?? 0), 0);
                               const hasM = factoryProducts.some((p) => (sendQtyManual[p.code]?.[wh.code] ?? 0) > 0);
                               return (
@@ -1696,7 +1825,7 @@ export default function ProductionPage() {
                     {/* 総合計行 */}
                     <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold">
                       <td colSpan={2} className="px-3 py-2 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 text-slate-600">総合計</td>
-                      {warehouses.map((wh) => {
+                      {displayWarehouses.map((wh) => {
                         const total = filteredProducts.reduce((s, p) => s + (sendQty[p.code]?.[wh.code] ?? 0), 0);
                         const hasM  = filteredProducts.some((p) => (sendQtyManual[p.code]?.[wh.code] ?? 0) > 0);
                         return (
@@ -1707,7 +1836,7 @@ export default function ProductionPage() {
                       })}
                       <td className="px-3 py-2 text-right text-slate-700">
                         {(() => {
-                          const grand = filteredProducts.reduce((s, p) => s + warehouses.reduce((ss, wh) => ss + (sendQty[p.code]?.[wh.code] ?? 0), 0), 0);
+                          const grand = filteredProducts.reduce((s, p) => s + displayWarehouses.reduce((ss, wh) => ss + (sendQty[p.code]?.[wh.code] ?? 0), 0), 0);
                           return grand > 0 ? `${grand.toLocaleString()}個` : '—';
                         })()}
                       </td>
