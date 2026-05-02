@@ -17,6 +17,7 @@ export interface Product {
   poji?: boolean;             // ポジ（○/×）
   destination?: string;       // 仕向け（量販 / 一般 等）
   productionMethod?: string;  // 生産方式
+  loadedHeightMM?: number;   // パレット込み積載総高さ（mm）デフォルト1200
 }
 
 export interface Warehouse {
@@ -31,10 +32,11 @@ export interface TruckType {
   code: string;
   name: string;
   maxPallets: number;
-  cols: number;   // 横列数
-  rows: number;   // 縦行数
+  cols: number;   // 横列数（荷台幅方向）
+  rows: number;   // 縦行数（奥行き方向）
   widthMM: number;
   depthMM: number;
+  heightMM: number; // 荷室有効高さ（mm）
 }
 
 export interface PalletType {
@@ -85,13 +87,36 @@ export interface PalletItem {
   pallets: number;      // パレット枚数
   qty: number;          // 個数
   capacityPerPallet: number;
+  loadedHeightMM?: number; // パレット積載総高さ（mm）
+}
+
+/** 1スロット（行×列×段）の積載情報 */
+export interface TruckSlotItem {
+  productCode: string;
+  qty: number;
+  capacityPerPallet: number;
+  loadedHeightMM: number;
+  orderNum: number;
+}
+
+/** ウイング車側面図レイアウト */
+export interface TruckLayout {
+  cols: number;
+  rows: number;
+  truckHeightMM: number;
+  /** [row][col] → floor pallet (row=0 前方, row=rows-1 後方) */
+  floor: (TruckSlotItem | null)[][];
+  /** [row][col] → upper pallet (null = 不可または空き) */
+  upper: (TruckSlotItem | null)[][];
 }
 
 export interface TruckLoad {
   truckIndex: number;   // 1号車〜
   items: PalletItem[];  // 積載アイテム（積み込み順）
-  totalPallets: number; // 使用パレット数
-  maxPallets: number;   // 最大パレット数
+  totalPallets: number; // 使用パレット数（床面のみ）
+  maxPallets: number;   // 最大パレット数（床面スロット数）
+  layout?: TruckLayout; // 2D積載レイアウト（stacking算出後）
+  upperPallets?: number; // 2段目に積まれたパレット枚数
 }
 
 export interface WarehousePlan {

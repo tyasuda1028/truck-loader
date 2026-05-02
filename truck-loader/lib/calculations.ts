@@ -2,12 +2,22 @@ import type {
   Factory, Product, Warehouse, TruckType,
   ProductionPlan, DistributionRatios,
   InventoryStock, LocationStock, InTransitStock, PlannedSales, SendQtyManual,
-  PalletItem, TruckLoad, WarehousePlan,
+  PalletItem, TruckLoad, TruckLayout, TruckSlotItem, WarehousePlan,
   WeeklyShippingSchedule, DayWarehousePlan,
 } from './types';
 
 /** 切り上げ除算 */
 const ceilDiv = (a: number, b: number) => (b > 0 ? Math.ceil(a / b) : 0);
+
+/** 同名倉庫をグループ化する */
+export function groupWarehousesByName(warehouses: Warehouse[]): Map<string, Warehouse[]> {
+  const map = new Map<string, Warehouse[]>();
+  for (const wh of warehouses) {
+    if (!map.has(wh.name)) map.set(wh.name, []);
+    map.get(wh.name)!.push(wh);
+  }
+  return map;
+}
 
 /**
  * 在庫不足に基づいて各拠点への送り数を計算する
@@ -151,7 +161,8 @@ export function calcWarehousePlan(
 }
 
 /**
- * 全拠点の積載計画を計算する
+ * 全拠点の積載計画を計算する（同名倉庫はマージして1プランにする）
+ * Result is keyed by warehouse NAME (not code).
  */
 export function calcAllPlans(
   warehouses: Warehouse[],
@@ -176,10 +187,22 @@ export function calcAllPlans(
   applyManualOverrides(sendQty, sendQtyManual);
 
   const result: Record<string, WarehousePlan> = {};
-  for (const wh of warehouses) {
-    const truck = truckMap[wh.truckType];
+  const nameGroups = groupWarehousesByName(warehouses);
+
+  for (const [name, whGroup] of nameGroups) {
+    const firstWh = whGroup[0];
+    const truck = truckMap[firstWh.truckType];
     if (!truck) continue;
-    result[wh.code] = calcWarehousePlan(wh.code, products, truck, sendQty);
+
+    // Merge send quantities: sum over all codes in the group, keyed by name
+    const mergedSendQty: Record<string, Record<string, number>> = {};
+    for (const p of products) {
+      const totalQty = whGroup.reduce((s, wh) => s + (sendQty[p.code]?.[wh.code] ?? 0), 0);
+      mergedSendQty[p.code] = { [name]: totalQty };
+    }
+
+    const plan = calcWarehousePlan(name, products, truck, mergedSendQty);
+    result[name] = plan;
   }
   return result;
 }
@@ -247,22 +270,34 @@ export function calcWeeklyPlans(
 
     const dayPlans: DayWarehousePlan[] = [];
 
-    for (const wh of warehouses) {
-      const truck = truckMap[wh.truckType];
+    const nameGroups = groupWarehousesByName(warehouses);
+
+    for (const [name, whGroup] of nameGroups) {
+      const firstWh = whGroup[0];
+      const truck = truckMap[firstWh.truckType];
       if (!truck) continue;
 
-      // スケジュール上のアクティブ日を取得
-      const dayFlags = schedule[factory.code]?.[wh.code]; // boolean[7] or undefined
-      const activeDays: number[] = [];
-      if (dayFlags) {
-        for (let i = 0; i < 7; i++) {
-          if (dayFlags[i]) activeDays.push(i);
+      // Union of active days across all codes in the group
+      const activeDaysSet = new Set<number>();
+      for (const wh of whGroup) {
+        const dayFlags = schedule[factory.code]?.[wh.code];
+        if (dayFlags) {
+          for (let i = 0; i < 7; i++) {
+            if (dayFlags[i]) activeDaysSet.add(i);
+          }
         }
       }
+      const activeDays = Array.from(activeDaysSet).sort((a, b) => a - b);
 
+      // Merge weekly send quantities: sum over all codes in the group
       if (activeDays.length === 0) {
         // スケジュールなし → 週全体として1プランを作る
-        const plan = calcWarehousePlan(wh.code, factoryProducts, truck, weeklySendQty);
+        const mergedSendQty: Record<string, Record<string, number>> = {};
+        for (const p of factoryProducts) {
+          const totalQty = whGroup.reduce((s, wh) => s + (weeklySendQty[p.code]?.[wh.code] ?? 0), 0);
+          mergedSendQty[p.code] = { [firstWh.code]: totalQty };
+        }
+        const plan = calcWarehousePlan(firstWh.code, factoryProducts, truck, mergedSendQty);
         if (plan.trucks.length === 0) continue;
         dayPlans.push({ ...plan, factoryCode: factory.code, dayOfWeek: -1 });
       } else {
@@ -270,18 +305,16 @@ export function calcWeeklyPlans(
         const numDays = activeDays.length;
 
         for (const dayIdx of activeDays) {
-          // 各製品・各拠点の送り数を days で均等分割（余りは最初の曜日に加算）
           const daySendQty: Record<string, Record<string, number>> = {};
           for (const p of factoryProducts) {
-            daySendQty[p.code] = {};
-            const weeklyQty = weeklySendQty[p.code]?.[wh.code] ?? 0;
+            const weeklyQty = whGroup.reduce((s, wh) => s + (weeklySendQty[p.code]?.[wh.code] ?? 0), 0);
             const base = Math.floor(weeklyQty / numDays);
             const remainder = weeklyQty % numDays;
             // 最初のアクティブ日（activeDays[0]）に余りを加算
             const extra = dayIdx === activeDays[0] ? remainder : 0;
-            daySendQty[p.code][wh.code] = base + extra;
+            daySendQty[p.code] = { [firstWh.code]: base + extra };
           }
-          const plan = calcWarehousePlan(wh.code, factoryProducts, truck, daySendQty);
+          const plan = calcWarehousePlan(firstWh.code, factoryProducts, truck, daySendQty);
           if (plan.trucks.length === 0) continue;
           dayPlans.push({ ...plan, factoryCode: factory.code, dayOfWeek: dayIdx });
         }
@@ -298,4 +331,69 @@ export function calcWeeklyPlans(
 export function fillRate(plan: WarehousePlan, maxPallets: number): number {
   if (plan.trucks.length === 0) return 0;
   return Math.round(plan.totalPallets / (plan.trucks.length * maxPallets) * 100);
+}
+
+/**
+ * 2段積みレイアウトを計算する（視覚化用）
+ * TruckLoad の items を rows×cols の2D グリッド（床+上段）に配置する
+ * - 前方（row=0）から後方（row=rows-1）へ順に床を埋める
+ * - 床パレットの高さ + 上段パレットの高さ ≤ 荷室高さ の場合に上段配置
+ * - orderNum は床面を先に振り、その後上段に連番
+ */
+export function calcStackingLayout(
+  load: TruckLoad,
+  truckType: TruckType,
+  products: Product[],
+): TruckLayout {
+  const { cols, rows, heightMM: truckH } = truckType;
+  const TRUCK_H = truckH ?? 2300;
+
+  // 製品コード → 積載高さ マップ
+  const heightMap: Record<string, number> = {};
+  for (const p of products) heightMap[p.code] = p.loadedHeightMM ?? 1200;
+
+  // 展開キュー（パレット1枚ずつ）
+  const queue: TruckSlotItem[] = [];
+  let orderNum = 1;
+  for (const item of load.items) {
+    const h = heightMap[item.productCode] ?? 1200;
+    const qtyPerPallet = item.capacityPerPallet;
+    for (let i = 0; i < item.pallets; i++) {
+      queue.push({
+        productCode: item.productCode,
+        qty: qtyPerPallet,
+        capacityPerPallet: qtyPerPallet,
+        loadedHeightMM: h,
+        orderNum: orderNum++,
+      });
+    }
+  }
+
+  // 初期化: floor[row][col], upper[row][col]
+  const floor: (TruckSlotItem | null)[][] = Array.from({ length: rows }, () => Array(cols).fill(null));
+  const upper: (TruckSlotItem | null)[][] = Array.from({ length: rows }, () => Array(cols).fill(null));
+
+  // Phase 1: 床面を前→後、左→右の順に埋める
+  outer1: for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      if (queue.length === 0) break outer1;
+      floor[row][col] = queue.shift()!;
+    }
+  }
+
+  // Phase 2: 上段に積めるか確認して埋める（床面と同順）
+  outer2: for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      if (queue.length === 0) break outer2;
+      const fp = floor[row][col];
+      if (!fp) continue; // 床が空 → 上段も不可
+      const nextH = queue[0].loadedHeightMM;
+      if (fp.loadedHeightMM + nextH <= TRUCK_H) {
+        // 上段に積める → orderNum は後段連番
+        upper[row][col] = { ...queue.shift()!, orderNum: orderNum++ };
+      }
+    }
+  }
+
+  return { cols, rows, truckHeightMM: TRUCK_H, floor, upper };
 }

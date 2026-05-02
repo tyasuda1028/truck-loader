@@ -56,9 +56,14 @@ export default function SchedulePage() {
 
   const relevantWarehouses = useMemo(() => {
     if (factoryProducts.length === 0) return [];
-    return warehouses.filter((wh) =>
-      factoryProducts.some((p) => (distributionRatios[p.code]?.[wh.code] ?? 0) > 0),
-    );
+    const seen = new Set<string>();
+    return warehouses.filter((wh) => {
+      if (seen.has(wh.name)) return false;
+      const allCodes = warehouses.filter((w) => w.name === wh.name);
+      const hasRatio = factoryProducts.some((p) => allCodes.some((w) => (distributionRatios[p.code]?.[w.code] ?? 0) > 0));
+      if (hasRatio) { seen.add(wh.name); return true; }
+      return false;
+    });
   }, [factoryProducts, warehouses, distributionRatios]);
 
   const weeklyPlans = useMemo(
@@ -87,13 +92,16 @@ export default function SchedulePage() {
     planByDayWh[`${plan.dayOfWeek}_${plan.warehouseCode}`] = plan;
   }
 
-  const handleToggle = (warehouseCode: string, dayIdx: number) => {
-    const current = weeklyShippingSchedule[selectedFactory]?.[warehouseCode]?.[dayIdx] ?? false;
-    setShippingDay(selectedFactory, warehouseCode, dayIdx, !current);
+  const getDayActive = (wh: (typeof relevantWarehouses)[number], dayIdx: number): boolean => {
+    const allCodes = warehouses.filter((w) => w.name === wh.name);
+    return allCodes.some((w) => weeklyShippingSchedule[selectedFactory]?.[w.code]?.[dayIdx] ?? false);
   };
 
-  const getDayActive = (warehouseCode: string, dayIdx: number): boolean =>
-    weeklyShippingSchedule[selectedFactory]?.[warehouseCode]?.[dayIdx] ?? false;
+  const handleToggle = (wh: (typeof relevantWarehouses)[number], dayIdx: number) => {
+    const current = getDayActive(wh, dayIdx);
+    const allCodes = warehouses.filter((w) => w.name === wh.name);
+    allCodes.forEach((w) => setShippingDay(selectedFactory, w.code, dayIdx, !current));
+  };
 
   const weekDates = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(planMonday);
@@ -210,9 +218,10 @@ export default function SchedulePage() {
                   </tr>
                 ) : (
                   relevantWarehouses.map((wh, ri) => {
-                    const activeDayCount = DAY_LABELS.filter((_, i) => getDayActive(wh.code, i)).length;
+                    const activeDayCount = DAY_LABELS.filter((_, i) => getDayActive(wh, i)).length;
+                    // planByDayWh is keyed by firstWh.code from calcWeeklyPlans — use wh.code (first of name group)
                     return (
-                      <tr key={wh.code} style={{ borderBottom: '1px solid #f3f4f6', background: ri % 2 === 0 ? 'white' : '#fafafa' }}>
+                      <tr key={wh.name} style={{ borderBottom: '1px solid #f3f4f6', background: ri % 2 === 0 ? 'white' : '#fafafa' }}>
                         {/* 拠点名 */}
                         <td style={{ padding: '8px 16px', position: 'sticky', left: 0, background: ri % 2 === 0 ? 'white' : '#fafafa', zIndex: 10, borderRight: '1px solid #f3f4f6' }}>
                           <div className="flex items-center gap-2">
@@ -231,13 +240,13 @@ export default function SchedulePage() {
 
                         {/* 曜日セル：トグル + 出荷数量 */}
                         {DAY_LABELS.map((_, dayIdx) => {
-                          const active = getDayActive(wh.code, dayIdx);
+                          const active = getDayActive(wh, dayIdx);
                           const cellPlan = planByDayWh[`${dayIdx}_${wh.code}`];
                           const hasQty = active && cellPlan && cellPlan.trucks.length > 0;
                           return (
                             <td key={dayIdx} style={{ padding: '4px 4px', textAlign: 'center', verticalAlign: 'middle' }}>
                               <button
-                                onClick={() => handleToggle(wh.code, dayIdx)}
+                                onClick={() => handleToggle(wh, dayIdx)}
                                 title={`${wh.name} — ${DAY_LABELS[dayIdx]}曜日（${formatMD(weekDates[dayIdx])}）`}
                                 style={{
                                   width: 80,

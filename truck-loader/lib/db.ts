@@ -45,6 +45,7 @@ export async function loadProducts(): Promise<Product[]> {
     poji: r.poji ?? false,
     destination: r.destination ?? '',
     productionMethod: r.production_method ?? '',
+    loadedHeightMM: r.loaded_height_mm ?? 1200,
   }));
 }
 
@@ -61,6 +62,7 @@ export async function upsertProduct(p: Product) {
     poji: p.poji ?? false,
     destination: p.destination ?? '',
     production_method: p.productionMethod ?? '',
+    loaded_height_mm: p.loadedHeightMM ?? 1200,
   });
   if (error) throw error;
 }
@@ -78,6 +80,7 @@ export async function upsertProducts(products: Product[]) {
     poji: p.poji ?? false,
     destination: p.destination ?? '',
     production_method: p.productionMethod ?? '',
+    loaded_height_mm: p.loadedHeightMM ?? 1200,
   }));
   const { error } = await supabase.from('products').upsert(rows);
   if (error) throw error;
@@ -131,6 +134,7 @@ export async function loadTruckTypes(): Promise<TruckType[]> {
     rows: r.rows,
     widthMM: r.width_mm,
     depthMM: r.depth_mm,
+    heightMM: r.height_mm ?? 2300,
   }));
 }
 

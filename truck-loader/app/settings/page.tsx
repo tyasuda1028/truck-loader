@@ -907,6 +907,15 @@ function ProductModal({
               ))}
             </select>
           </Field>
+          <Field label="積載高さ (mm)" hint="パレット込みの総高さ。2段積み判定に使用します（例: 1200mm）">
+            <input
+              type="number" min={100} max={3000} step={10}
+              className={INPUT_CLASS}
+              value={product.loadedHeightMM ?? 1200}
+              onChange={(e) => onChange({ ...product, loadedHeightMM: parseInt(e.target.value, 10) || 1200 })}
+              placeholder="1200"
+            />
+          </Field>
           <Field label="表示カラー">
             <div className="flex gap-2 flex-wrap">
               {PRESET_COLORS.map((c) => (
@@ -1092,10 +1101,11 @@ function PalletModal({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
       <label className="block text-xs font-medium text-slate-500 mb-1">{label}</label>
+      {hint && <p className="text-[10px] text-slate-400 mb-1">{hint}</p>}
       {children}
     </div>
   );

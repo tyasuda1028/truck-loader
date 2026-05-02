@@ -577,18 +577,19 @@ export default function LoadingPlanInner() {
                 <div className="flex gap-6 items-start flex-wrap">
                   <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
                     <div className="text-xs font-semibold text-slate-500 mb-3">
-                      荷台上面図 ─ {clampedTruck + 1}号車
-                      （{load.totalPallets}/{load.maxPallets}パレット）
+                      積載レイアウト ─ {clampedTruck + 1}号車
+                      （床面 {load.totalPallets}/{load.maxPallets}パレット）
                     </div>
                     <TruckDiagram
                       load={load}
-                      cols={activeTruckType.cols}
-                      rows={activeTruckType.rows}
+                      truckType={activeTruckType}
+                      products={products}
                       productColors={productColors}
                       productNames={productNames}
                     />
                     <div className="text-[10px] text-slate-400 mt-2 text-center">
-                      荷台 {activeTruckType.widthMM.toLocaleString()}mm × {activeTruckType.depthMM.toLocaleString()}mm
+                      荷台 {activeTruckType.widthMM.toLocaleString()} × {activeTruckType.depthMM.toLocaleString()}mm
+                      　高さ {activeTruckType.heightMM.toLocaleString()}mm
                     </div>
                   </div>
 
