@@ -594,9 +594,9 @@ export default function ProductionPage() {
               </thead>
               <tbody>
                 {factories.map((factory) => {
-                  const factoryProducts = filteredProducts.filter(
-                    (p) => (p.factoryCode ?? 'F001') === factory.code,
-                  );
+                  const factoryProducts = filteredProducts
+                    .filter((p) => (p.factoryCode ?? 'F001') === factory.code)
+                    .filter((p) => weekDays.some((d) => (dailyProductionPlan[p.code]?.[d] ?? 0) > 0));
                   if (factoryProducts.length === 0) return null;
                   const factoryDayTotals = weekDays.map(d =>
                     factoryProducts.reduce((s, p) => s + (dailyProductionPlan[p.code]?.[d] ?? 0), 0)
@@ -727,6 +727,18 @@ export default function ProductionPage() {
                     </React.Fragment>
                   );
                 })}
+                {/* 全製品ゼロ時の空表示 */}
+                {!factories.some((factory) =>
+                  filteredProducts
+                    .filter((p) => (p.factoryCode ?? 'F001') === factory.code)
+                    .some((p) => weekDays.some((d) => (dailyProductionPlan[p.code]?.[d] ?? 0) > 0))
+                ) && (
+                  <tr>
+                    <td colSpan={2 + 7 + 2} className="px-4 py-8 text-center text-slate-400 text-sm">
+                      この週の生産データがありません。CSVからインポートするか、値を入力してください。
+                    </td>
+                  </tr>
+                )}
                 {/* 総合計 */}
                 {(() => {
                   const grandDayTotals = weekDays.map(d =>
@@ -899,32 +911,40 @@ export default function ProductionPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredProducts.map((p) => (
-                    <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
-                      <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
-                      <td className="px-3 py-1.5 sticky left-32 bg-white z-10 border-r border-slate-200">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
-                          <span className="font-medium text-slate-700">{p.name}</span>
-                        </div>
-                      </td>
-                      {displayWarehouses.map((wh) => {
-                        const stock = locationStock[p.code]?.[wh.code] ?? 0;
-                        return (
-                          <td key={wh.code} className="px-1 py-1.5 text-center">
-                            <input
-                              type="number" min={0}
-                              value={stock === 0 ? '' : stock}
-                              onChange={(e) => setLocationStock(p.code, wh.code, parseInt(e.target.value, 10) || 0)}
-                              placeholder="0"
-                              className="w-16 text-center border border-slate-200 rounded px-1 py-0.5 text-xs
-                                         focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white"
-                            />
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
+                  {(() => {
+                    const rows = filteredProducts.filter((p) =>
+                      warehouses.some((wh) => (locationStock[p.code]?.[wh.code] ?? 0) > 0)
+                    );
+                    if (rows.length === 0) return (
+                      <tr><td colSpan={2 + displayWarehouses.length} className="px-4 py-8 text-center text-slate-400 text-sm">在庫データがありません。CSVからインポートするか、値を入力してください。</td></tr>
+                    );
+                    return rows.map((p) => (
+                      <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
+                        <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
+                        <td className="px-3 py-1.5 sticky left-32 bg-white z-10 border-r border-slate-200">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
+                            <span className="font-medium text-slate-700">{p.name}</span>
+                          </div>
+                        </td>
+                        {displayWarehouses.map((wh) => {
+                          const stock = locationStock[p.code]?.[wh.code] ?? 0;
+                          return (
+                            <td key={wh.code} className="px-1 py-1.5 text-center">
+                              <input
+                                type="number" min={0}
+                                value={stock === 0 ? '' : stock}
+                                onChange={(e) => setLocationStock(p.code, wh.code, parseInt(e.target.value, 10) || 0)}
+                                placeholder="0"
+                                className="w-16 text-center border border-slate-200 rounded px-1 py-0.5 text-xs
+                                           focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white"
+                              />
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ));
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -1118,38 +1138,46 @@ export default function ProductionPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredProducts.map((p) => {
-                    const rowTotal = displayWarehouses.reduce((s, wh) => s + (inTransitStock[p.code]?.[wh.code] ?? 0), 0);
-                    return (
-                      <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
-                        <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
-                        <td className="px-3 py-1.5 sticky left-32 bg-white z-10 border-r border-slate-200">
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
-                            <span className="font-medium text-slate-700">{p.name}</span>
-                          </div>
-                        </td>
-                        {displayWarehouses.map((wh) => {
-                          const qty = inTransitStock[p.code]?.[wh.code] ?? 0;
-                          return (
-                            <td key={wh.code} className="px-1 py-1.5 text-center">
-                              <input
-                                type="number" min={0}
-                                value={qty === 0 ? '' : qty}
-                                onChange={(e) => setInTransitStock(p.code, wh.code, parseInt(e.target.value, 10) || 0)}
-                                placeholder="0"
-                                className="w-16 text-center border border-slate-200 rounded px-1 py-0.5 text-xs
-                                           focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 bg-white"
-                              />
-                            </td>
-                          );
-                        })}
-                        <td className="px-3 py-1.5 text-right font-semibold text-amber-600">
-                          {rowTotal > 0 ? `${rowTotal.toLocaleString()}個` : <span className="text-slate-300">—</span>}
-                        </td>
-                      </tr>
+                  {(() => {
+                    const rows = filteredProducts.filter((p) =>
+                      warehouses.some((wh) => (inTransitStock[p.code]?.[wh.code] ?? 0) > 0)
                     );
-                  })}
+                    if (rows.length === 0) return (
+                      <tr><td colSpan={2 + displayWarehouses.length + 1} className="px-4 py-8 text-center text-slate-400 text-sm">輸送中データがありません。CSVからインポートするか、値を入力してください。</td></tr>
+                    );
+                    return rows.map((p) => {
+                      const rowTotal = displayWarehouses.reduce((s, wh) => s + (inTransitStock[p.code]?.[wh.code] ?? 0), 0);
+                      return (
+                        <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
+                          <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
+                          <td className="px-3 py-1.5 sticky left-32 bg-white z-10 border-r border-slate-200">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
+                              <span className="font-medium text-slate-700">{p.name}</span>
+                            </div>
+                          </td>
+                          {displayWarehouses.map((wh) => {
+                            const qty = inTransitStock[p.code]?.[wh.code] ?? 0;
+                            return (
+                              <td key={wh.code} className="px-1 py-1.5 text-center">
+                                <input
+                                  type="number" min={0}
+                                  value={qty === 0 ? '' : qty}
+                                  onChange={(e) => setInTransitStock(p.code, wh.code, parseInt(e.target.value, 10) || 0)}
+                                  placeholder="0"
+                                  className="w-16 text-center border border-slate-200 rounded px-1 py-0.5 text-xs
+                                             focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 bg-white"
+                                />
+                              </td>
+                            );
+                          })}
+                          <td className="px-3 py-1.5 text-right font-semibold text-amber-600">
+                            {rowTotal > 0 ? `${rowTotal.toLocaleString()}個` : <span className="text-slate-300">—</span>}
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
                   <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold">
                     <td className="px-3 py-2 sticky left-0 bg-slate-50 border-r border-slate-200 text-slate-600">合計</td>
                     {displayWarehouses.map((wh) => {
@@ -1314,32 +1342,40 @@ export default function ProductionPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredProducts.map((p) => (
-                    <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
-                      <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
-                      <td className="px-3 py-1.5 sticky left-32 bg-white z-10 border-r border-slate-200">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
-                          <span className="font-medium text-slate-700">{p.name}</span>
-                        </div>
-                      </td>
-                      {displayWarehouses.map((wh) => {
-                        const qty = plannedSales[p.code]?.[wh.code] ?? 0;
-                        return (
-                          <td key={wh.code} className="px-1 py-1.5 text-center">
-                            <input
-                              type="number" min={0}
-                              value={qty === 0 ? '' : qty}
-                              onChange={(e) => setPlannedSales(p.code, wh.code, parseInt(e.target.value, 10) || 0)}
-                              placeholder="0"
-                              className="w-16 text-center border border-slate-200 rounded px-1 py-0.5 text-xs
-                                         focus:outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400 bg-white"
-                            />
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
+                  {(() => {
+                    const rows = filteredProducts.filter((p) =>
+                      warehouses.some((wh) => (plannedSales[p.code]?.[wh.code] ?? 0) > 0)
+                    );
+                    if (rows.length === 0) return (
+                      <tr><td colSpan={2 + displayWarehouses.length} className="px-4 py-8 text-center text-slate-400 text-sm">予定出荷データがありません。CSVからインポートするか、値を入力してください。</td></tr>
+                    );
+                    return rows.map((p) => (
+                      <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
+                        <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
+                        <td className="px-3 py-1.5 sticky left-32 bg-white z-10 border-r border-slate-200">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-sm border border-black/10 shrink-0" style={{ background: p.color }} />
+                            <span className="font-medium text-slate-700">{p.name}</span>
+                          </div>
+                        </td>
+                        {displayWarehouses.map((wh) => {
+                          const qty = plannedSales[p.code]?.[wh.code] ?? 0;
+                          return (
+                            <td key={wh.code} className="px-1 py-1.5 text-center">
+                              <input
+                                type="number" min={0}
+                                value={qty === 0 ? '' : qty}
+                                onChange={(e) => setPlannedSales(p.code, wh.code, parseInt(e.target.value, 10) || 0)}
+                                placeholder="0"
+                                className="w-16 text-center border border-slate-200 rounded px-1 py-0.5 text-xs
+                                           focus:outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400 bg-white"
+                              />
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ));
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -1748,9 +1784,9 @@ export default function ProductionPage() {
                 </thead>
                   <tbody>
                     {factories.map((factory) => {
-                      const factoryProducts = filteredProducts.filter(
-                        (p) => (p.factoryCode ?? 'F001') === factory.code,
-                      );
+                      const factoryProducts = filteredProducts
+                        .filter((p) => (p.factoryCode ?? 'F001') === factory.code)
+                        .filter((p) => warehouses.some((wh) => (sendQtyManual[p.code]?.[wh.code] ?? 0) > 0));
                       if (factoryProducts.length === 0) return null;
                       const factoryTotal = displayWarehouses.reduce(
                         (s, wh) => s + factoryProducts.reduce((ss, p) => ss + (sendQty[p.code]?.[wh.code] ?? 0), 0), 0,
@@ -1842,6 +1878,18 @@ export default function ProductionPage() {
                         </React.Fragment>
                       );
                     })}
+                    {/* 手動送り数ゼロ時の空表示 */}
+                    {!factories.some((factory) =>
+                      filteredProducts
+                        .filter((p) => (p.factoryCode ?? 'F001') === factory.code)
+                        .some((p) => warehouses.some((wh) => (sendQtyManual[p.code]?.[wh.code] ?? 0) > 0))
+                    ) && (
+                      <tr>
+                        <td colSpan={2 + displayWarehouses.length + 1} className="px-4 py-8 text-center text-slate-400 text-sm">
+                          手動送り数が設定されていません。下の入力フォームで値を入力してください。
+                        </td>
+                      </tr>
+                    )}
                     {/* 総合計行 */}
                     <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold">
                       <td colSpan={2} className="px-3 py-2 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 text-slate-600">総合計</td>
