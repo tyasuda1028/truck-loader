@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useCallback } from 'react';
 import { useAppStore } from '@/lib/store';
 import type { Factory, Product, Warehouse, PalletType } from '@/lib/types';
 import { parseProductsCSV, generateProductsTemplate, downloadCSV } from '@/lib/csv';
 import { buildEquipmentColorMap, buildProductColors, PRODUCT_PALETTE } from '@/lib/productColors';
+import * as db from '@/lib/db';
 import clsx from 'clsx';
 
 type Tab = 'products' | 'warehouses' | 'pallets' | 'trucks' | 'factories' | 'operating';
@@ -32,6 +33,50 @@ export default function SettingsPage() {
   // 製品フィルター
   const [filterEquipmentName, setFilterEquipmentName] = useState<string | null>(null);
   const [filterText, setFilterText] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  // 検索サジェスト候補（入力中に表示）
+  const searchSuggestions = useMemo(() => {
+    const q = filterText.trim().toLowerCase();
+    if (!q) return [];
+    return products
+      .filter((p) =>
+        p.code.toLowerCase().includes(q) ||
+        p.name.toLowerCase().includes(q) ||
+        (p.equipmentName?.toLowerCase() ?? '').includes(q)
+      )
+      .slice(0, 10);
+  }, [filterText, products]);
+
+  // 重複コード検出
+  const duplicateCodes = useMemo(() => {
+    const seen = new Set<string>();
+    const dups = new Set<string>();
+    for (const p of products) {
+      if (seen.has(p.code)) dups.add(p.code);
+      else seen.add(p.code);
+    }
+    return dups;
+  }, [products]);
+
+  const [deduping, setDeduping] = useState(false);
+  const [dedupResult, setDedupResult] = useState<string | null>(null);
+
+  const handleDeduplicateProducts = useCallback(async () => {
+    setDeduping(true);
+    setDedupResult(null);
+    try {
+      const removed = await db.deduplicateProducts();
+      // ストアを再ロード
+      await useAppStore.getState().loadFromSupabase();
+      setDedupResult(removed > 0 ? `${removed} 種類の重複を削除しました。` : '重複なし（変更なし）');
+    } catch (err) {
+      setDedupResult(`エラー: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setDeduping(false);
+    }
+  }, []);
 
   const [editingFactory, setEditingFactory] = useState<Factory | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -483,9 +528,45 @@ export default function SettingsPage() {
             </div>
           </details>
 
-          {/* フィルターバー */}
+          {/* ── 重複警告バナー ── */}
+          {duplicateCodes.size > 0 && (
+            <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-3 text-xs">
+              <span className="text-amber-600 font-bold shrink-0">⚠️ 重複コードを検出</span>
+              <span className="text-amber-700 flex-1">
+                同じ商品コードが複数登録されています：
+                <span className="font-mono ml-1">{Array.from(duplicateCodes).join(', ')}</span>
+              </span>
+              <button
+                onClick={handleDeduplicateProducts}
+                disabled={deduping}
+                className={clsx(
+                  'px-3 py-1 rounded-md text-xs font-semibold border transition-colors shrink-0',
+                  deduping
+                    ? 'bg-slate-100 text-slate-400 cursor-wait border-slate-200'
+                    : 'bg-amber-600 text-white border-amber-600 hover:bg-amber-700',
+                )}
+              >
+                {deduping ? '処理中…' : '重複を削除'}
+              </button>
+              {dedupResult && (
+                <span className={clsx(
+                  'text-xs font-medium shrink-0',
+                  dedupResult.startsWith('エラー') ? 'text-red-600' : 'text-emerald-600',
+                )}>
+                  {dedupResult}
+                </span>
+              )}
+            </div>
+          )}
+          {!duplicateCodes.size && dedupResult && (
+            <div className="mb-3 p-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700">
+              ✓ {dedupResult}
+            </div>
+          )}
+
+          {/* ── フィルターバー ── */}
           {(() => {
-            // 全器具名リスト（工場順・器具名順）
+            // 全器具名リスト
             const allEqNames = Array.from(new Set(
               products.map((p) => p.equipmentName?.trim() || '（器具名未設定）')
             ));
@@ -502,20 +583,66 @@ export default function SettingsPage() {
               <div className="mb-3 flex flex-col gap-2">
                 {/* テキスト検索 + 追加ボタン */}
                 <div className="flex items-center gap-2">
-                  <div className="relative flex-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
+                  <div className="relative flex-1" ref={searchRef}>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">🔍</span>
                     <input
                       type="text"
                       placeholder="製品名・コード・器具名で検索…"
                       value={filterText}
-                      onChange={(e) => setFilterText(e.target.value)}
+                      onChange={(e) => { setFilterText(e.target.value); setShowSuggestions(true); }}
+                      onFocus={() => setShowSuggestions(true)}
+                      onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                       className="w-full pl-7 pr-8 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400"
                     />
                     {filterText && (
                       <button
-                        onClick={() => setFilterText('')}
+                        onClick={() => { setFilterText(''); setShowSuggestions(false); }}
                         className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
                       >✕</button>
+                    )}
+
+                    {/* ── サジェストドロップダウン ── */}
+                    {showSuggestions && searchSuggestions.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-72 overflow-y-auto">
+                        {searchSuggestions.map((p) => {
+                          const q = filterText.toLowerCase();
+                          const codeMatch = p.code.toLowerCase().includes(q);
+                          const nameMatch = p.name.toLowerCase().includes(q);
+                          return (
+                            <button
+                              key={p.code}
+                              onMouseDown={(e) => {
+                                e.preventDefault(); // blur を防ぐ
+                                setFilterText(p.name);
+                                setShowSuggestions(false);
+                              }}
+                              className="w-full px-3 py-2 text-left hover:bg-slate-50 flex items-center gap-2 border-b border-slate-50 last:border-0 transition-colors"
+                            >
+                              <span
+                                className="w-3 h-3 rounded border border-black/10 shrink-0"
+                                style={{ background: productColors[p.code] ?? '#94a3b8' }}
+                              />
+                              <span className={clsx(
+                                'font-mono text-xs shrink-0',
+                                codeMatch ? 'text-brand-700 font-bold' : 'text-slate-400',
+                              )}>
+                                {p.code}
+                              </span>
+                              <span className={clsx(
+                                'text-sm truncate flex-1',
+                                nameMatch ? 'text-slate-900 font-semibold' : 'text-slate-600',
+                              )}>
+                                {p.name}
+                              </span>
+                              {p.equipmentName && (
+                                <span className="text-xs text-slate-400 shrink-0 hidden sm:block">
+                                  {p.equipmentName}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                   <button
@@ -525,6 +652,7 @@ export default function SettingsPage() {
                     + 製品を追加
                   </button>
                 </div>
+
                 {/* 器具名チップ */}
                 <div className="flex flex-wrap gap-1.5 items-center">
                   <button

@@ -33,21 +33,78 @@ export async function deleteFactory(code: string) {
 export async function loadProducts(): Promise<Product[]> {
   const { data, error } = await supabase.from('products').select('*');
   if (error) throw error;
-  return (data ?? []).map((r) => ({
-    code: r.code,
-    name: r.name,
-    capacityPerPallet: r.capacity_per_pallet,
-    palletType: r.pallet_type,
-    color: r.color,
-    factoryCode: r.factory_code ?? 'F001',
-    equipmentCategory: r.equipment_category ?? '',
-    equipmentName: r.equipment_name ?? '',
-    poji: r.poji ?? false,
-    destination: r.destination ?? '',
-    productionMethod: r.production_method ?? '',
-    stackable: r.stackable ?? true,
-    allowStackOnTop: r.allow_stack_on_top ?? true,
-  }));
+  // code が重複している場合は最初の出現を優先してフィルタ（DB側で重複が起きた場合の安全策）
+  const seen = new Set<string>();
+  return (data ?? [])
+    .map((r) => ({
+      code: r.code as string,
+      name: r.name as string,
+      capacityPerPallet: r.capacity_per_pallet as number,
+      palletType: r.pallet_type as string,
+      color: r.color as string,
+      factoryCode: (r.factory_code as string | null) ?? 'F001',
+      equipmentCategory: (r.equipment_category as string | null) ?? '',
+      equipmentName: (r.equipment_name as string | null) ?? '',
+      poji: (r.poji as boolean | null) ?? false,
+      destination: (r.destination as string | null) ?? '',
+      productionMethod: (r.production_method as string | null) ?? '',
+      stackable: (r.stackable as boolean | null) ?? true,
+      allowStackOnTop: (r.allow_stack_on_top as boolean | null) ?? true,
+    }))
+    .filter((p) => {
+      if (seen.has(p.code)) return false;
+      seen.add(p.code);
+      return true;
+    });
+}
+
+/**
+ * DB 上の products テーブルの重複行（同一 code）を削除し、各 code 1 行にする。
+ * 削除した重複件数（code の種類数）を返す。
+ */
+export async function deduplicateProducts(): Promise<number> {
+  // 全行をロード
+  const { data, error } = await supabase.from('products').select('*');
+  if (error) throw error;
+
+  const rows = data ?? [];
+  // code ごとに最初の行を「残す行」として記録
+  const keepByCode = new Map<string, typeof rows[0]>();
+  const duplicatedCodes = new Set<string>();
+  for (const row of rows) {
+    if (keepByCode.has(row.code)) {
+      duplicatedCodes.add(row.code);
+    } else {
+      keepByCode.set(row.code, row);
+    }
+  }
+  if (duplicatedCodes.size === 0) return 0;
+
+  // 重複がある code を1つずつ処理（全削除 → 1行だけ再挿入）
+  for (const code of duplicatedCodes) {
+    const { error: delErr } = await supabase.from('products').delete().eq('code', code);
+    if (delErr) throw delErr;
+
+    const keep = keepByCode.get(code)!;
+    const { error: insErr } = await supabase.from('products').insert({
+      code: keep.code,
+      name: keep.name,
+      capacity_per_pallet: keep.capacity_per_pallet,
+      pallet_type: keep.pallet_type,
+      color: keep.color,
+      factory_code: keep.factory_code ?? 'F001',
+      equipment_category: keep.equipment_category ?? '',
+      equipment_name: keep.equipment_name ?? '',
+      poji: keep.poji ?? false,
+      destination: keep.destination ?? '',
+      production_method: keep.production_method ?? '',
+      stackable: keep.stackable ?? true,
+      allow_stack_on_top: keep.allow_stack_on_top ?? true,
+    });
+    if (insErr) throw insErr;
+  }
+
+  return duplicatedCodes.size;
 }
 
 export async function upsertProduct(p: Product) {
