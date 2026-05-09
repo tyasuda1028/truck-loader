@@ -264,11 +264,11 @@ export default function SchedulePage() {
                                         <span style={{ fontSize: 9, color: '#1d4ed8', fontWeight: 700 }}>
                                           {cellPlan.trucks.length}台
                                         </span>
-                                        <span style={{ fontSize: 9, color: '#6b7280' }}>
-                                          {cellPlan.totalPallets}P
-                                        </span>
                                         <span style={{ fontSize: 9, color: '#374151', fontWeight: 600 }}>
                                           {cellPlan.totalQty.toLocaleString()}個
+                                        </span>
+                                        <span style={{ fontSize: 9, color: '#6b7280' }}>
+                                          {cellPlan.totalPallets}P
                                         </span>
                                       </>
                                     ) : (

@@ -102,16 +102,18 @@ export function calcWarehousePlan(
   const effectiveCap = canStack ? floorCap * 2 : floorCap;
   const maxPal = Math.max(truckType.maxPallets, effectiveCap);
 
-  // 製品ごとに送り数 → パレット数を計算
+  // 製品ごとに送り数 → パレット数を計算（端数は切り捨て＝完全パレット単位のみ）
   const items: (PalletItem & { originalPallets: number; remaining: number })[] = [];
   for (const p of products) {
     const qty = sendQty[p.code]?.[warehouseCode] ?? 0;
     if (qty <= 0) continue;
-    const pallets = ceilDiv(qty, p.capacityPerPallet);
+    const pallets = Math.floor(qty / p.capacityPerPallet); // 端数切り捨て
+    if (pallets <= 0) continue; // 1パレット未満は積載しない
+    const effectiveQty = pallets * p.capacityPerPallet; // 完全パレット分の実数量
     items.push({
       productCode: p.code,
       pallets,
-      qty,
+      qty: effectiveQty,
       capacityPerPallet: p.capacityPerPallet,
       originalPallets: pallets,
       remaining: pallets,

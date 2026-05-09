@@ -432,7 +432,8 @@ export default function LoadingPlanInner() {
                                         {hasQty ? (
                                           <>
                                             <span className="text-[9px] font-bold text-blue-700">{cellPlan.trucks.length}台</span>
-                                            <span className="text-[9px] text-slate-600 font-semibold">{cellPlan.totalPallets}P</span>
+                                            <span className="text-[9px] text-slate-700 font-semibold">{cellPlan.totalQty.toLocaleString()}個</span>
+                                            <span className="text-[9px] text-slate-500">{cellPlan.totalPallets}P</span>
                                           </>
                                         ) : (
                                           <span className="text-[9px] text-blue-300">計画なし</span>
