@@ -1,4 +1,4 @@
-import type { Product, PalletType, Warehouse, ProductionPlan, InventoryStock, LocationStock, DailyProductionPlan, PlannedSales, DistributionRatios, InTransitStock } from './types';
+import type { Product, PalletType, Warehouse, ProductionPlan, InventoryStock, LocationStock, DailyProductionPlan, PlannedSales, BaselineStock, InTransitStock } from './types';
 
 // ─── CSV パース共通 ───────────────────────────────────────────────────
 
@@ -827,21 +827,21 @@ export function generateInTransitStockTemplate(
 }
 
 /**
- * 配分比率 CSV を解析（製品 × 拠点のマトリクス形式）。
+ * 拠点別 基準在庫数 CSV を解析（製品 × 拠点のマトリクス形式）。
  *
  * 1行目ヘッダで列を判定（列順は問わない）。
  * 拠点列は拠点コード（大小無視）または拠点名でマッチ。
  * マージ動作：CSVに含まれない拠点列・製品行は既存値を保持する。
- * 値は 0〜100 の整数（%）。
+ * 値は 0 以上の整数（個）。
  */
-export function parseDistributionRatiosCSV(
+export function parseBaselineStockCSV(
   text: string,
   products: Product[],
   warehouses: Warehouse[],
-  existingRatios: DistributionRatios = {},
+  existingBaseline: BaselineStock = {},
 ): {
-  ratios: DistributionRatios;
-  rows: { code: string; name: string; whRatio: Record<string, number>; found: boolean }[];
+  baseline: BaselineStock;
+  rows: { code: string; name: string; whQty: Record<string, number>; found: boolean }[];
   warnings: string[];
 } {
   const productMap = Object.fromEntries(products.map((p) => [normalizeProductCode(p.code), p]));
@@ -850,7 +850,7 @@ export function parseDistributionRatiosCSV(
   const warnings: string[] = [];
   if (lines.length < 2) {
     warnings.push('データが不足しています（ヘッダ行 + 1行以上のデータが必要です）');
-    return { ratios: cloneMatrixStock(existingRatios), rows: [], warnings };
+    return { baseline: cloneMatrixStock(existingBaseline), rows: [], warnings };
   }
 
   const headers = parseCSVLine(lines[0]);
@@ -860,15 +860,15 @@ export function parseDistributionRatiosCSV(
 
   if (codeColIdx === -1) {
     warnings.push('「製品コード」列が見つかりませんでした');
-    return { ratios: cloneMatrixStock(existingRatios), rows: [], warnings };
+    return { baseline: cloneMatrixStock(existingBaseline), rows: [], warnings };
   }
   if (validWarehouses.length === 0) {
     warnings.push('拠点コード/拠点名の列が見つかりませんでした');
-    return { ratios: cloneMatrixStock(existingRatios), rows: [], warnings };
+    return { baseline: cloneMatrixStock(existingBaseline), rows: [], warnings };
   }
 
-  const ratios: DistributionRatios = cloneMatrixStock(existingRatios);
-  const rows: { code: string; name: string; whRatio: Record<string, number>; found: boolean }[] = [];
+  const baseline: BaselineStock = cloneMatrixStock(existingBaseline);
+  const rows: { code: string; name: string; whQty: Record<string, number>; found: boolean }[] = [];
 
   for (let r = 1; r < lines.length; r++) {
     const cells = parseCSVLine(lines[r]);
@@ -880,35 +880,35 @@ export function parseDistributionRatiosCSV(
       warnings.push(`行${r + 1}: 製品コード「${code}」はマスタに存在しません（インポートはされます）`);
     }
 
-    ratios[code] = { ...(ratios[code] ?? {}) };
-    const whRatio: Record<string, number> = {};
+    baseline[code] = { ...(baseline[code] ?? {}) };
+    const whQty: Record<string, number> = {};
 
     for (const { wc, colIdx } of validWarehouses) {
       const val = parseInt(cells[colIdx] ?? '', 10) || 0;
-      ratios[code][wc] = val;
-      whRatio[wc] = val;
+      baseline[code][wc] = val;
+      whQty[wc] = val;
     }
 
     const name = nameColIdx !== -1
       ? (cells[nameColIdx]?.trim() ?? '')
       : (productMap[code]?.name ?? code);
-    rows.push({ code, name, whRatio, found });
+    rows.push({ code, name, whQty, found });
   }
 
-  return { ratios, rows, warnings };
+  return { baseline, rows, warnings };
 }
 
-/** 配分比率 CSV テンプレートを生成（製品 × 拠点のマトリクス） */
-export function generateDistributionRatiosTemplate(
+/** 拠点別 基準在庫数 CSV テンプレートを生成（製品 × 拠点のマトリクス） */
+export function generateBaselineStockTemplate(
   products: Product[],
   warehouses: Warehouse[],
-  currentRatios: DistributionRatios = {},
+  currentBaseline: BaselineStock = {},
 ): string {
   const whCodes = warehouses.map((w) => w.code);
   const header = ['製品コード', '製品名', ...whCodes].join(',');
   const rows = products.map((p) => {
-    const ratioVals = whCodes.map((wc) => currentRatios[p.code]?.[wc] ?? 0);
-    return [p.code, `"${p.name}"`, ...ratioVals].join(',');
+    const qtyVals = whCodes.map((wc) => currentBaseline[p.code]?.[wc] ?? 0);
+    return [p.code, `"${p.name}"`, ...qtyVals].join(',');
   });
   return '\uFEFF' + [header, ...rows].join('\r\n');
 }

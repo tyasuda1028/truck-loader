@@ -106,7 +106,7 @@ export default function SettingsPage() {
 
   // 拠点の新規追加用空テンプレート
   const newWarehouse = (): Warehouse => ({
-    code: '', name: '', group: '東', truckType: 'T06', maxPallets: 12,
+    code: '', name: '', truckType: 'T06', maxPallets: 12,
   });
 
   // パレット型の新規追加用空テンプレート
@@ -863,7 +863,6 @@ export default function SettingsPage() {
                 <tr className="bg-slate-50 text-xs text-slate-500">
                   <th className="px-4 py-2.5 text-left font-semibold">拠点コード</th>
                   <th className="px-4 py-2.5 text-left font-semibold">拠点名</th>
-                  <th className="px-4 py-2.5 text-left font-semibold">区分</th>
                   <th className="px-4 py-2.5 text-left font-semibold">車種</th>
                   <th className="px-4 py-2.5 text-right font-semibold">最大P数</th>
                   <th className="px-4 py-2.5 text-right font-semibold">操作</th>
@@ -876,14 +875,6 @@ export default function SettingsPage() {
                     <tr key={w.code} className="border-t border-slate-100 hover:bg-slate-50">
                       <td className="px-4 py-2 font-mono text-xs text-slate-500">{w.code}</td>
                       <td className="px-4 py-2 font-medium">{w.name}</td>
-                      <td className="px-4 py-2">
-                        <span className={clsx(
-                          'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
-                          w.group === '東' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700',
-                        )}>
-                          {w.group}
-                        </span>
-                      </td>
                       <td className="px-4 py-2 text-slate-500 text-xs">
                         {truck?.name ?? w.truckType}
                       </td>
@@ -1882,16 +1873,6 @@ function WarehouseModal({
               onChange={(e) => onChange({ ...warehouse, name: e.target.value })}
               placeholder="例: 東京営業所"
             />
-          </Field>
-          <Field label="エリア区分">
-            <select
-              className={INPUT_CLASS}
-              value={warehouse.group}
-              onChange={(e) => onChange({ ...warehouse, group: e.target.value as '東' | '西' })}
-            >
-              <option value="東">東</option>
-              <option value="西">西</option>
-            </select>
           </Field>
           <Field label="使用車種">
             <select

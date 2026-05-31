@@ -10,7 +10,7 @@ import clsx from 'clsx';
 export default function DashboardPage() {
   const {
     factories, products, warehouses, truckTypes, palletTypes,
-    productionPlan, distributionRatios, inventoryStock, locationStock,
+    productionPlan, baselineStock, locationStock,
     inTransitStock, plannedSales, weeklyShippingSchedule, sendQtyManual,
   } = useAppStore();
 
@@ -20,11 +20,11 @@ export default function DashboardPage() {
   const weeklyPlans = useMemo(
     () => calcWeeklyPlans(
       warehouses, products, truckTypes, factories,
-      productionPlan, distributionRatios, inventoryStock, locationStock,
+      productionPlan, baselineStock, locationStock,
       weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual, palletTypes,
     ),
-    [warehouses, products, truckTypes, factories, productionPlan, distributionRatios,
-     inventoryStock, locationStock, weeklyShippingSchedule, inTransitStock, plannedSales,
+    [warehouses, products, truckTypes, factories, productionPlan, baselineStock,
+     locationStock, weeklyShippingSchedule, inTransitStock, plannedSales,
      sendQtyManual, palletTypes],
   );
 
@@ -49,13 +49,13 @@ export default function DashboardPage() {
   // ── 拠点別 週間合計（重複名をマージ） ────────────────────────────────
   // warehouseName → 週間集計
   const whWeeklyMap = useMemo(() => {
-    const map: Record<string, { name: string; code: string; group: string; totalTrucks: number; totalPallets: number; totalQty: number; maxPallets: number; days: number }> = {};
+    const map: Record<string, { name: string; code: string; totalTrucks: number; totalPallets: number; totalQty: number; maxPallets: number; days: number }> = {};
     for (const p of allScheduledPlans) {
       const wh = warehouseMap[p.warehouseCode];
       const name = wh?.name ?? p.warehouseCode;
       if (!map[name]) {
         const tt = wh ? truckMap[wh.truckType] : undefined;
-        map[name] = { name, code: p.warehouseCode, group: wh?.group ?? '', totalTrucks: 0, totalPallets: 0, totalQty: 0, maxPallets: tt?.maxPallets ?? 0, days: 0 };
+        map[name] = { name, code: p.warehouseCode, totalTrucks: 0, totalPallets: 0, totalQty: 0, maxPallets: tt?.maxPallets ?? 0, days: 0 };
       }
       map[name].totalTrucks  += p.trucks.length;
       map[name].totalPallets += p.totalPallets;
@@ -97,6 +97,33 @@ export default function DashboardPage() {
       <div className="sys-page-title">
         ダッシュボード
         <span style={{ fontSize: 12, fontWeight: 400, color: '#9ca3af' }}>今週の出荷計画サマリー</span>
+      </div>
+
+      {/* ── ワークフロー導線（このアプリの流れ） ── */}
+      <div className="mb-5 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <p className="mb-2 text-[11px] font-semibold text-slate-400">
+          在庫基準と増減から「どの拠点へ・どのトラックで・どう積むか」をAIが提案します
+        </p>
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          {[
+            { n: '①', label: 'マスタ設定', href: '/settings', desc: '製品・拠点・トラック' },
+            { n: '②', label: '基準在庫・在庫', href: '/production', desc: '目標在庫と増減' },
+            { n: '③', label: '生産数入力', href: '/production', desc: '週間生産数' },
+            { n: '④', label: 'AI提案・積載計画', href: '/loading-plan', desc: 'トラックと積み方' },
+          ].map((s, i, arr) => (
+            <span key={s.n} className="flex items-center gap-1.5">
+              <Link
+                href={s.href}
+                className="group flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 hover:border-indigo-300 hover:bg-indigo-50"
+              >
+                <span className="font-bold text-indigo-600">{s.n}</span>
+                <span className="font-semibold text-slate-700 group-hover:text-indigo-700">{s.label}</span>
+                <span className="hidden text-[10px] text-slate-400 sm:inline">{s.desc}</span>
+              </Link>
+              {i < arr.length - 1 && <span className="text-slate-300">→</span>}
+            </span>
+          ))}
+        </div>
       </div>
 
       {/* ── スケジュール未設定の警告 ── */}
@@ -165,12 +192,6 @@ export default function DashboardPage() {
                       <div className="font-semibold" style={{ fontSize: 13, color: '#1e3a5f' }}>{wh.name}</div>
                     </div>
                     <div className="flex flex-col items-end gap-1">
-                      <span className="font-bold" style={{
-                        fontSize: 10, padding: '1px 6px', borderRadius: 2,
-                        background: wh.group === '東' ? '#dbeafe' : '#fee2e2',
-                        color: wh.group === '東' ? '#1e40af' : '#b91c1c',
-                        border: `1px solid ${wh.group === '東' ? '#bfdbfe' : '#fecaca'}`,
-                      }}>{wh.group}</span>
                       {hasPlan && (
                         <span style={{ fontSize: 9, color: '#94a3b8' }}>{weekly.days}日出荷</span>
                       )}
@@ -283,12 +304,6 @@ export default function DashboardPage() {
                               background: ri % 2 === 0 ? 'white' : '#f7f9fc', verticalAlign: 'middle', minWidth: 140 }}>
                               <div className="font-semibold" style={{ color: '#1e3a5f', fontSize: 12 }}>{wh.name}</div>
                               <div className="flex items-center gap-1 mt-0.5">
-                                <span style={{
-                                  fontSize: 9, padding: '1px 5px', borderRadius: 2, fontWeight: 700,
-                                  background: wh.group === '東' ? '#dbeafe' : '#fee2e2',
-                                  color: wh.group === '東' ? '#1e40af' : '#b91c1c',
-                                  border: `1px solid ${wh.group === '東' ? '#bfdbfe' : '#fecaca'}`,
-                                }}>{wh.group}</span>
                                 <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'monospace' }}>{wh.code}</span>
                               </div>
                             </td>

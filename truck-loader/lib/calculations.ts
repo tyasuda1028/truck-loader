@@ -1,7 +1,7 @@
 import type {
   Factory, Product, Warehouse, TruckType, PalletType,
-  ProductionPlan, DistributionRatios,
-  InventoryStock, LocationStock, InTransitStock, PlannedSales, SendQtyManual,
+  ProductionPlan, BaselineStock,
+  LocationStock, InTransitStock, PlannedSales, SendQtyManual,
   PalletItem, TruckLoad, TruckLayout, TruckSlotItem, WarehousePlan,
   WeeklyShippingSchedule, DayWarehousePlan,
 } from './types';
@@ -19,59 +19,97 @@ export function groupWarehousesByName(warehouses: Warehouse[]): Map<string, Ware
   return map;
 }
 
+/** 1行＝1製品×1拠点 の配分内訳（AIコンテキスト・画面表示用） */
+export interface DistributionDetailRow {
+  productCode: string;
+  warehouseCode: string;
+  required: number;        // 拠点別 基準在庫数（個）
+  currentStock: number;    // 拠点在庫（個）
+  inTransit: number;       // 輸送中（個）
+  plannedSales: number;    // 予定出荷（個）
+  effectiveStock: number;  // max(0, 拠点在庫 + 輸送中 - 予定出荷)
+  shortage: number;        // max(0, 必要 - 有効在庫)
+  sendQty: number;         // 計算された送り数（個）
+}
+
 /**
- * 在庫不足に基づいて各拠点への送り数を計算する
- * 全体在庫 × 配分比率 = 必要在庫
+ * 在庫不足に基づく配分内訳を計算する（送り数の根拠を含む）
+ * 必要在庫 = 拠点別 基準在庫数（個）
  * 有効在庫 = max(0, 拠点在庫 + 輸送中 - 予定出荷)
  * 不足数 = max(0, 必要 - 有効在庫)
  * 生産数を不足比率で按分して送り数を決定する
  */
-export function calcSendQty(
+export function calcDistributionDetail(
   products: Product[],
   warehouses: Warehouse[],
   productionPlan: ProductionPlan,
-  ratios: DistributionRatios,
-  inventoryStock: InventoryStock,
+  baselineStock: BaselineStock,
   locationStock: LocationStock,
   inTransitStock: InTransitStock = {},
   plannedSales: PlannedSales = {},
-): Record<string, Record<string, number>> {
-  const sendQty: Record<string, Record<string, number>> = {};
+): DistributionDetailRow[] {
+  const rows: DistributionDetailRow[] = [];
 
   for (const p of products) {
-    const totalInventory = inventoryStock[p.code] ?? 0;
     const production = productionPlan[p.code] ?? 0;
-    sendQty[p.code] = {};
 
     // 各拠点の不足数を計算（拠点在庫 + 輸送中 - 予定出荷 を有効在庫とする）
-    const shortages: Record<string, number> = {};
+    const stats: Record<string, Omit<DistributionDetailRow, 'productCode' | 'warehouseCode' | 'sendQty'>> = {};
     let totalShortage = 0;
 
     for (const wh of warehouses) {
-      const ratio = ratios[p.code]?.[wh.code] ?? 0;
-      const required = Math.round(totalInventory * ratio / 100);
+      const required = baselineStock[p.code]?.[wh.code] ?? 0;
       const currentStock = locationStock[p.code]?.[wh.code] ?? 0;
       const inTransit = inTransitStock[p.code]?.[wh.code] ?? 0;
       const sales = plannedSales[p.code]?.[wh.code] ?? 0;
       const effectiveStock = Math.max(0, currentStock + inTransit - sales);
       const shortage = Math.max(0, required - effectiveStock);
-      shortages[wh.code] = shortage;
+      stats[wh.code] = { required, currentStock, inTransit, plannedSales: sales, effectiveStock, shortage };
       totalShortage += shortage;
     }
 
     // 生産数を不足比率で按分
     for (const wh of warehouses) {
-      const shortage = shortages[wh.code] ?? 0;
+      const s = stats[wh.code];
+      let sendQty: number;
       if (totalShortage === 0 || production === 0) {
-        sendQty[p.code][wh.code] = 0;
+        sendQty = 0;
       } else if (totalShortage <= production) {
         // 生産数が不足を全て賄える場合：不足数をそのまま送る
-        sendQty[p.code][wh.code] = shortage;
+        sendQty = s.shortage;
       } else {
         // 生産数が不足に満たない場合：比率で按分
-        sendQty[p.code][wh.code] = Math.round(production * shortage / totalShortage);
+        sendQty = Math.round(production * s.shortage / totalShortage);
       }
+      rows.push({ productCode: p.code, warehouseCode: wh.code, ...s, sendQty });
     }
+  }
+
+  return rows;
+}
+
+/**
+ * 在庫不足に基づいて各拠点への送り数を計算する
+ * （内訳は calcDistributionDetail を共有し、ここでは送り数のみを取り出す）
+ */
+export function calcSendQty(
+  products: Product[],
+  warehouses: Warehouse[],
+  productionPlan: ProductionPlan,
+  baselineStock: BaselineStock,
+  locationStock: LocationStock,
+  inTransitStock: InTransitStock = {},
+  plannedSales: PlannedSales = {},
+): Record<string, Record<string, number>> {
+  const sendQty: Record<string, Record<string, number>> = {};
+  // 製品キーを必ず初期化（拠点ゼロでも空オブジェクトを保持し従来挙動と一致させる）
+  for (const p of products) sendQty[p.code] = {};
+
+  const rows = calcDistributionDetail(
+    products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales,
+  );
+  for (const r of rows) {
+    sendQty[r.productCode][r.warehouseCode] = r.sendQty;
   }
 
   return sendQty;
@@ -185,8 +223,7 @@ export function calcAllPlans(
   products: Product[],
   truckTypes: TruckType[],
   productionPlan: ProductionPlan,
-  ratios: DistributionRatios,
-  inventoryStock: InventoryStock,
+  baselineStock: BaselineStock,
   locationStock: LocationStock,
   inTransitStock: InTransitStock = {},
   plannedSales: PlannedSales = {},
@@ -197,7 +234,7 @@ export function calcAllPlans(
 
   // 在庫不足に基づく送り数を計算（輸送中・予定出荷も考慮）
   const sendQty = calcSendQty(
-    products, warehouses, productionPlan, ratios, inventoryStock, locationStock, inTransitStock, plannedSales,
+    products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales,
   );
 
   // 手動上書きを適用
@@ -249,8 +286,7 @@ export function calcWeeklyPlans(
   truckTypes: TruckType[],
   factories: Factory[],
   productionPlan: ProductionPlan,
-  ratios: DistributionRatios,
-  inventoryStock: InventoryStock,
+  baselineStock: BaselineStock,
   locationStock: LocationStock,
   schedule: WeeklyShippingSchedule,
   inTransitStock: InTransitStock = {},
@@ -276,8 +312,7 @@ export function calcWeeklyPlans(
       factoryProducts,
       warehouses,
       productionPlan,
-      ratios,
-      inventoryStock,
+      baselineStock,
       locationStock,
       inTransitStock,
       plannedSales,

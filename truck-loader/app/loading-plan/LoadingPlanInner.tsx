@@ -6,6 +6,8 @@ import { calcWeeklyPlans, calcSendQty } from '@/lib/calculations';
 import { buildProductColors } from '@/lib/productColors';
 import { TruckDiagram } from '@/components/TruckDiagram';
 import { LoadingTable } from '@/components/LoadingTable';
+import { AIRecommendationPanel } from '@/components/AIRecommendationPanel';
+import { useAiRecommendation } from '@/lib/useAiRecommendation';
 import type { DayWarehousePlan, Warehouse } from '@/lib/types';
 import clsx from 'clsx';
 
@@ -53,10 +55,14 @@ interface MergedDestination {
 export default function LoadingPlanInner() {
   const {
     factories, products, warehouses, truckTypes, palletTypes,
-    productionPlan, distributionRatios, inventoryStock, locationStock,
+    productionPlan, baselineStock, locationStock,
     weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual,
-    confirmShipment, setShippingDay,
+    confirmShipment, setShippingDay, setSendQtyManual,
   } = useAppStore();
+
+  // AI提案ドロワー
+  const ai = useAiRecommendation();
+  const [aiOpen, setAiOpen] = useState(false);
 
   const productColors = buildProductColors(products);
   const productNames  = Object.fromEntries(products.map((p) => [p.code, p.name]));
@@ -65,18 +71,18 @@ export default function LoadingPlanInner() {
 
   // 全製品の週間送り数（出荷確定用）
   const allSendQty = useMemo(
-    () => calcSendQty(products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales),
-    [products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales],
+    () => calcSendQty(products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales),
+    [products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales],
   );
 
   // 工場別・日別計画
   const weeklyPlans = useMemo(
     () => calcWeeklyPlans(
       warehouses, products, truckTypes, factories,
-      productionPlan, distributionRatios, inventoryStock, locationStock,
+      productionPlan, baselineStock, locationStock,
       weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual, palletTypes,
     ),
-    [warehouses, products, truckTypes, factories, productionPlan, distributionRatios, inventoryStock, locationStock, weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual, palletTypes],
+    [warehouses, products, truckTypes, factories, productionPlan, baselineStock, locationStock, weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual, palletTypes],
   );
 
   // ── 表示ビュー ─────────────────────────────────────────────────────────────
@@ -168,7 +174,7 @@ export default function LoadingPlanInner() {
     return map;
   }, [factoryPlans]);
 
-  // ── スケジュール設定ビュー用: 拠点リスト（重複排除、配分比率あり） ──────────
+  // ── スケジュール設定ビュー用: 拠点リスト（重複排除、基準在庫数あり） ──────────
   const factoryProducts = products.filter((p) => (p.factoryCode ?? 'F001') === selectedFactory);
   const scheduleWarehouses = useMemo(() => {
     if (factoryProducts.length === 0) return [];
@@ -176,11 +182,11 @@ export default function LoadingPlanInner() {
     return warehouses.filter((wh) => {
       if (seen.has(wh.name)) return false;
       const allCodes = warehouses.filter((w) => w.name === wh.name);
-      const hasRatio = factoryProducts.some((p) => allCodes.some((w) => (distributionRatios[p.code]?.[w.code] ?? 0) > 0));
-      if (hasRatio) { seen.add(wh.name); return true; }
+      const hasBaseline = factoryProducts.some((p) => allCodes.some((w) => (baselineStock[p.code]?.[w.code] ?? 0) > 0));
+      if (hasBaseline) { seen.add(wh.name); return true; }
       return false;
     });
-  }, [factoryProducts, warehouses, distributionRatios]);
+  }, [factoryProducts, warehouses, baselineStock]);
 
   const getDayActive = (wh: Warehouse, dayIdx: number): boolean => {
     const allCodes = warehouses.filter((w) => w.name === wh.name);
@@ -289,6 +295,12 @@ export default function LoadingPlanInner() {
         >
           🚛 積載計画
         </button>
+        <button
+          onClick={() => { setAiOpen(true); if (!ai.data && !ai.loading) ai.generate(); }}
+          className="ml-auto my-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+        >
+          🤖 AI提案
+        </button>
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════════
@@ -377,7 +389,7 @@ export default function LoadingPlanInner() {
                   </thead>
                   <tbody>
                     {scheduleWarehouses.length === 0 ? (
-                      <tr><td colSpan={11} className="px-4 py-8 text-center text-slate-400 italic">配分比率が設定された拠点がありません</td></tr>
+                      <tr><td colSpan={11} className="px-4 py-8 text-center text-slate-400 italic">基準在庫数が設定された拠点がありません</td></tr>
                     ) : (
                       scheduleWarehouses.map((wh, ri) => {
                         const activeDayCount = DAY_LABELS.filter((_, i) => getDayActive(wh, i)).length;
@@ -400,10 +412,6 @@ export default function LoadingPlanInner() {
                             {/* 拠点名 */}
                             <td className="px-4 py-2 sticky left-0 bg-white border-r border-slate-100">
                               <div className="flex items-center gap-2">
-                                <span className={clsx(
-                                  'text-[9px] font-bold px-1.5 py-0.5 rounded-full',
-                                  wh.group === '東' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700',
-                                )}>{wh.group}</span>
                                 <div>
                                   <div className="font-semibold text-slate-700">{wh.name}</div>
                                   <div className="text-[10px] text-slate-400 font-mono">{wh.code}</div>
@@ -541,7 +549,6 @@ export default function LoadingPlanInner() {
               {mergedForDay.map((merged) => {
                 const isActive = merged.name === (selectedMerged?.name ?? '');
                 const sfr = computeMergedFillRate(merged);
-                const groups = [...new Set(merged.plans.map((p) => warehouseMap[p.warehouseCode]?.group).filter(Boolean))];
                 return (
                   <button
                     key={merged.name}
@@ -553,11 +560,6 @@ export default function LoadingPlanInner() {
                   >
                     <div className="flex items-center justify-between gap-1">
                       <span className="text-[10px] font-bold text-slate-400 truncate">{merged.plans.map((p) => p.warehouseCode).join('/')}</span>
-                      <div className="flex gap-0.5 shrink-0">
-                        {groups.map((g) => (
-                          <span key={g} className={clsx('text-[9px] font-bold px-1 py-0.5 rounded-full', g === '東' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700')}>{g}</span>
-                        ))}
-                      </div>
                     </div>
                     <div className="text-xs font-medium text-slate-700 mt-0.5 leading-tight">{merged.name}</div>
                     <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500">
@@ -584,14 +586,11 @@ export default function LoadingPlanInner() {
                   <div className="mb-4">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <h1 className="text-lg font-bold text-slate-800">{selectedMerged.name}</h1>
-                      {selectedMerged.plans.map((p) => {
-                        const whInfo = warehouseMap[p.warehouseCode];
-                        return (
-                          <span key={p.warehouseCode} className={clsx('text-[10px] font-bold px-1.5 py-0.5 rounded-full', whInfo?.group === '東' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700')}>
-                            {p.warehouseCode}{whInfo?.group ? ` ${whInfo.group}` : ''}
-                          </span>
-                        );
-                      })}
+                      {selectedMerged.plans.map((p) => (
+                        <span key={p.warehouseCode} className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                          {p.warehouseCode}
+                        </span>
+                      ))}
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
                         {factories.find((f) => f.code === selectedFactory)?.name ?? selectedFactory}
                       </span>
@@ -633,12 +632,11 @@ export default function LoadingPlanInner() {
                     {truckPlanLabels.map(({ plan: tPlan, globalIndex }, i) => {
                       const prevLabel = i > 0 ? truckPlanLabels[i - 1] : null;
                       const isNewGroup = prevLabel && prevLabel.planIndex !== truckPlanLabels[i].planIndex;
-                      const whInfo = warehouseMap[tPlan.warehouseCode];
                       return (
                         <span key={globalIndex} className="flex items-center gap-1">
                           {(i === 0 || isNewGroup) && selectedMerged.plans.length > 1 && (
-                            <span className={clsx('text-[9px] font-bold px-1.5 py-0.5 rounded', whInfo?.group === '東' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700')}>
-                              {tPlan.warehouseCode}{whInfo?.group ? ` ${whInfo.group}` : ''}
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                              {tPlan.warehouseCode}
                             </span>
                           )}
                           <button
@@ -713,6 +711,39 @@ export default function LoadingPlanInner() {
             </aside>
           </div>
         </>
+      )}
+
+      {/* ── AI提案 スライドオーバー ── */}
+      {aiOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div
+            className="absolute inset-0 bg-black/30"
+            onClick={() => setAiOpen(false)}
+            aria-hidden
+          />
+          <div className="relative w-full max-w-md h-full bg-slate-50 shadow-2xl overflow-y-auto">
+            <div className="sticky top-0 z-10 flex items-center justify-between bg-white border-b border-slate-200 px-4 py-3">
+              <h2 className="text-sm font-bold text-slate-800">🤖 AI提案</h2>
+              <button
+                onClick={() => setAiOpen(false)}
+                className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-100"
+              >
+                閉じる ✕
+              </button>
+            </div>
+            <div className="p-4">
+              <AIRecommendationPanel
+                data={ai.data}
+                loading={ai.loading}
+                error={ai.error}
+                onGenerate={ai.generate}
+                onApplyAdjustment={(pc, wc, qty) => setSendQtyManual(pc, wc, qty)}
+                productNames={productNames}
+                className="border-0 shadow-none p-0 bg-transparent"
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

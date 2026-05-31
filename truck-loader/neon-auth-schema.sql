@@ -79,10 +79,20 @@ ALTER TABLE daily_production_plan ALTER COLUMN company_id SET NOT NULL;
 ALTER TABLE daily_production_plan ADD PRIMARY KEY (company_id, product_code, date);
 
 -- distribution_ratios: PK を (company_id, product_code, warehouse_code) に変更
+-- （旧・配分比率モデル。現行は baseline_stock を使用。後方互換のため残置）
 ALTER TABLE distribution_ratios ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE CASCADE;
 ALTER TABLE distribution_ratios DROP CONSTRAINT IF EXISTS distribution_ratios_pkey;
 ALTER TABLE distribution_ratios ALTER COLUMN company_id SET NOT NULL;
 ALTER TABLE distribution_ratios ADD PRIMARY KEY (company_id, product_code, warehouse_code);
+
+-- baseline_stock: 拠点別 基準在庫数（個）。新規デプロイ用に作成。
+CREATE TABLE IF NOT EXISTS baseline_stock (
+  company_id     UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  product_code   TEXT NOT NULL,
+  warehouse_code TEXT NOT NULL,
+  qty            INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (company_id, product_code, warehouse_code)
+);
 
 -- inventory_stock: PK を (company_id, product_code) に変更
 ALTER TABLE inventory_stock ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE CASCADE;
@@ -141,6 +151,7 @@ CREATE INDEX IF NOT EXISTS pallet_types_company_id_idx          ON pallet_types(
 CREATE INDEX IF NOT EXISTS production_plan_company_id_idx       ON production_plan(company_id);
 CREATE INDEX IF NOT EXISTS daily_production_plan_company_id_idx ON daily_production_plan(company_id);
 CREATE INDEX IF NOT EXISTS distribution_ratios_company_id_idx   ON distribution_ratios(company_id);
+CREATE INDEX IF NOT EXISTS baseline_stock_company_id_idx        ON baseline_stock(company_id);
 CREATE INDEX IF NOT EXISTS inventory_stock_company_id_idx       ON inventory_stock(company_id);
 CREATE INDEX IF NOT EXISTS location_stock_company_id_idx        ON location_stock(company_id);
 CREATE INDEX IF NOT EXISTS in_transit_stock_company_id_idx      ON in_transit_stock(company_id);

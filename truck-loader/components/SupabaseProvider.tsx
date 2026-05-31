@@ -5,7 +5,7 @@ import { useAppStore } from '@/lib/store';
 import * as db from '@/lib/db';
 import type {
   Factory, Product, Warehouse, TruckType, PalletType,
-  ProductionPlan, DailyProductionPlan, DistributionRatios,
+  ProductionPlan, DailyProductionPlan,
   InventoryStock, LocationStock, WeeklyShippingSchedule,
 } from '@/lib/types';
 
@@ -19,7 +19,6 @@ interface LegacyStore {
     palletTypes?: PalletType[];
     productionPlan?: ProductionPlan;
     dailyProductionPlan?: DailyProductionPlan;
-    distributionRatios?: DistributionRatios;
     inventoryStock?: InventoryStock;
     locationStock?: LocationStock;
     weeklyShippingSchedule?: WeeklyShippingSchedule;
@@ -67,13 +66,6 @@ async function migrateLegacyDataIfExists(): Promise<boolean> {
     }
     if (s.dailyProductionPlan) {
       tasks.push(db.replaceAllDailyProductionPlan(s.dailyProductionPlan));
-    }
-    if (s.distributionRatios) {
-      for (const [pc, whs] of Object.entries(s.distributionRatios)) {
-        for (const [wc, ratio] of Object.entries(whs)) {
-          tasks.push(db.upsertDistributionRatio(pc, wc, ratio));
-        }
-      }
     }
     if (s.inventoryStock) {
       tasks.push(

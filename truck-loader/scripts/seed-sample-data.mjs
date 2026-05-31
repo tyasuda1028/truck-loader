@@ -60,16 +60,16 @@ const products = [
 ];
 
 const warehouses = [
-  { code: 'W001', name: '札幌物流センター',   group: '東', truck: 'T06', max: 12 },
-  { code: 'W002', name: '仙台営業所',         group: '東', truck: 'T05', max: 8 },
-  { code: 'W003', name: '東京物流センター',   group: '東', truck: 'T04', max: 16 },
-  { code: 'W004', name: '名古屋物流センター', group: '西', truck: 'T06', max: 12 },
-  { code: 'W005', name: '大阪物流センター',   group: '西', truck: 'T06', max: 12 },
-  { code: 'W006', name: '福岡営業所',         group: '西', truck: 'T05', max: 8 },
+  { code: 'W001', name: '札幌物流センター',   truck: 'T06', max: 12 },
+  { code: 'W002', name: '仙台営業所',         truck: 'T05', max: 8 },
+  { code: 'W003', name: '東京物流センター',   truck: 'T04', max: 16 },
+  { code: 'W004', name: '名古屋物流センター', truck: 'T06', max: 12 },
+  { code: 'W005', name: '大阪物流センター',   truck: 'T06', max: 12 },
+  { code: 'W006', name: '福岡営業所',         truck: 'T05', max: 8 },
 ];
 
-// 配分比率（全製品共通、合計100%）
-const ratioByWh = { W001: 10, W002: 15, W003: 30, W004: 15, W005: 20, W006: 10 };
+// 拠点規模シェア（基準在庫数・現在庫・予定出荷を按分するための拠点の規模感）
+const shareByWh = { W001: 10, W002: 15, W003: 30, W004: 15, W005: 20, W006: 10 };
 
 // 週間生産数（個）
 const productionQty = {
@@ -77,8 +77,8 @@ const productionQty = {
   D005: 4000, D006: 2400, D007: 2400, D008: 3600,
 };
 
-// 全体在庫数（個）＝週間生産の約1.5倍
-const inventoryQty = {
+// 製品ごとの目標在庫（全拠点合計, 個）＝週間生産の約1.5倍。各拠点へは shareByWh で按分する。
+const baselineTotal = {
   D001: 7200, D002: 5400, D003: 10800, D004: 7500,
   D005: 6000, D006: 3600, D007: 3600, D008: 5400,
 };
@@ -99,7 +99,7 @@ async function run() {
   // 既存のサンプルデータをクリア（このテナント分のみ）
   console.log('🧹 既存データクリア中...');
   for (const t of ['send_qty_manual','planned_sales','in_transit_stock','location_stock',
-                    'inventory_stock','distribution_ratios','daily_production_plan',
+                    'inventory_stock','baseline_stock','distribution_ratios','daily_production_plan',
                     'production_plan','weekly_shipping_schedule','operating_days',
                     'non_working_dates','products','warehouses','factories']) {
     await sql.query(`DELETE FROM ${t} WHERE company_id = $1`, [COMPANY_ID]);
@@ -129,7 +129,7 @@ async function run() {
   for (const w of warehouses) {
     await sql`
       INSERT INTO warehouses (company_id, code, name, "group", truck_type, max_pallets)
-      VALUES (${COMPANY_ID}, ${w.code}, ${w.name}, ${w.group}, ${w.truck}, ${w.max})
+      VALUES (${COMPANY_ID}, ${w.code}, ${w.name}, '', ${w.truck}, ${w.max})
     `;
   }
 
@@ -149,34 +149,30 @@ async function run() {
     }
   }
 
-  // 配分比率
-  console.log('📊 配分比率...');
-  for (const code of Object.keys(productionQty)) {
-    for (const [wh, ratio] of Object.entries(ratioByWh)) {
-      await sql`INSERT INTO distribution_ratios (company_id, product_code, warehouse_code, ratio) VALUES (${COMPANY_ID}, ${code}, ${wh}, ${ratio})`;
+  // 基準在庫数（拠点別 目標在庫数, 個）＝製品ごとの目標在庫を拠点規模シェアで按分
+  console.log('📊 基準在庫数...');
+  for (const [code, total] of Object.entries(baselineTotal)) {
+    for (const [wh, share] of Object.entries(shareByWh)) {
+      const qty = Math.round(total * share / 100);
+      await sql`INSERT INTO baseline_stock (company_id, product_code, warehouse_code, qty) VALUES (${COMPANY_ID}, ${code}, ${wh}, ${qty})`;
     }
   }
 
-  // 全体在庫
-  console.log('📦 在庫...');
-  for (const [code, qty] of Object.entries(inventoryQty)) {
-    await sql`INSERT INTO inventory_stock (company_id, product_code, qty) VALUES (${COMPANY_ID}, ${code}, ${qty})`;
-  }
-
-  // 拠点別在庫（在庫を配分比率で按分）
+  // 拠点別現在庫（基準在庫数の約60%＝不足が出る状態にして生産補充をデモ）
   console.log('🗺  拠点別在庫...');
-  for (const [code, total] of Object.entries(inventoryQty)) {
-    for (const [wh, ratio] of Object.entries(ratioByWh)) {
-      const qty = Math.round(total * ratio / 100);
+  for (const [code, total] of Object.entries(baselineTotal)) {
+    for (const [wh, share] of Object.entries(shareByWh)) {
+      const baseline = Math.round(total * share / 100);
+      const qty = Math.round(baseline * 0.6);
       await sql`INSERT INTO location_stock (company_id, product_code, warehouse_code, qty) VALUES (${COMPANY_ID}, ${code}, ${wh}, ${qty})`;
     }
   }
 
-  // 今週予定出荷数（週間生産の配分比率按分）
+  // 今週予定出荷数（週間生産を拠点規模シェアで按分）
   console.log('🚚 予定出荷数...');
   for (const [code, total] of Object.entries(productionQty)) {
-    for (const [wh, ratio] of Object.entries(ratioByWh)) {
-      const qty = Math.round(total * ratio / 100);
+    for (const [wh, share] of Object.entries(shareByWh)) {
+      const qty = Math.round(total * share / 100);
       await sql`INSERT INTO planned_sales (company_id, product_code, warehouse_code, qty) VALUES (${COMPANY_ID}, ${code}, ${wh}, ${qty})`;
     }
   }
@@ -191,7 +187,7 @@ async function run() {
   // 件数確認
   console.log('\n✅ 投入完了。件数確認:');
   for (const t of ['factories','products','warehouses','production_plan','daily_production_plan',
-                   'distribution_ratios','inventory_stock','location_stock','planned_sales',
+                   'baseline_stock','location_stock','planned_sales',
                    'weekly_shipping_schedule','operating_days']) {
     const rows = await sql.query(`SELECT COUNT(*)::int AS c FROM ${t} WHERE company_id = $1`, [COMPANY_ID]);
     console.log(`  ${t.padEnd(26)} ${rows[0].c} 件`);

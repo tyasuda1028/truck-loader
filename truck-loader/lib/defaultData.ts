@@ -1,4 +1,4 @@
-import type { TruckType, PalletType, ProductionPlan, DistributionRatios, InventoryStock, LocationStock, WeeklyShippingSchedule, OperatingDays } from './types';
+import type { TruckType, PalletType, ProductionPlan, BaselineStock, InventoryStock, LocationStock, WeeklyShippingSchedule, OperatingDays } from './types';
 
 // 工場・製品・倉庫はテナントが自分で登録するため、デフォルトデータなし
 
@@ -25,8 +25,8 @@ export const DEFAULT_INVENTORY_STOCK: InventoryStock = {};
 // 拠点別現在庫（個）
 export const DEFAULT_LOCATION_STOCK: LocationStock = {};
 
-// 配分比率（%）
-export const DEFAULT_DISTRIBUTION_RATIOS: DistributionRatios = {};
+// 拠点別 基準在庫数（個）
+export const DEFAULT_BASELINE_STOCK: BaselineStock = {};
 
 export const DEFAULT_SHIPPING_SCHEDULE: WeeklyShippingSchedule = {};
 

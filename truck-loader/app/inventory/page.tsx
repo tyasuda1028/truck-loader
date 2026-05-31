@@ -10,7 +10,7 @@ import clsx from 'clsx';
 export default function InventoryPage() {
   const {
     factories, products, warehouses, truckTypes,
-    productionPlan, distributionRatios, inventoryStock,
+    productionPlan, baselineStock,
     locationStock, inTransitStock, plannedSales,
     setLocationStock, confirmShipment,
   } = useAppStore();
@@ -23,17 +23,17 @@ export default function InventoryPage() {
   const [filterText, setFilterText] = useState('');
 
   const sendQty = useMemo(
-    () => calcSendQty(products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales),
-    [products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales],
+    () => calcSendQty(products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales),
+    [products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales],
   );
 
   const plans = useMemo(
-    () => calcAllPlans(warehouses, products, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales),
-    [warehouses, products, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales],
+    () => calcAllPlans(warehouses, products, truckTypes, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales),
+    [warehouses, products, truckTypes, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales],
   );
 
   const activeWarehouses = warehouses.filter((wh) =>
-    products.some((p) => (distributionRatios[p.code]?.[wh.code] ?? 0) > 0),
+    products.some((p) => (baselineStock[p.code]?.[wh.code] ?? 0) > 0),
   );
 
   const hasInTransit = products.some((p) =>
@@ -302,10 +302,6 @@ export default function InventoryPage() {
                   <th key={wh.code} colSpan={colsPerWh}
                     className="px-2 py-2 text-center font-semibold text-slate-600 border-l border-slate-200">
                     <div className="flex items-center justify-center gap-1">
-                      <span className={clsx(
-                        'text-[9px] font-bold px-1 py-0.5 rounded-full',
-                        wh.group === '東' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700',
-                      )}>{wh.group}</span>
                       <span>{wh.name}</span>
                     </div>
                     <div className="text-[9px] text-slate-400 font-normal">{wh.code}</div>
@@ -410,7 +406,7 @@ export default function InventoryPage() {
                                   {p.name}
                                 </td>
                                 {activeWarehouses.map((wh) => {
-                                  const ratio   = distributionRatios[p.code]?.[wh.code] ?? 0;
+                                  const baseline = baselineStock[p.code]?.[wh.code] ?? 0;
                                   const cur     = locationStock[p.code]?.[wh.code] ?? 0;
                                   const transit = inTransitStock[p.code]?.[wh.code] ?? 0;
                                   const sales   = plannedSales[p.code]?.[wh.code] ?? 0;
@@ -420,7 +416,7 @@ export default function InventoryPage() {
                                     <>
                                       <td key={`${p.code}-${wh.code}-cur`}
                                         className="px-1 py-1.5 text-center border-l border-slate-200 bg-blue-50/30">
-                                        {ratio === 0 ? (
+                                        {baseline === 0 ? (
                                           <span className="text-slate-200">—</span>
                                         ) : (
                                           <input

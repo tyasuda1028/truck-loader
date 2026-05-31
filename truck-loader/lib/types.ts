@@ -29,7 +29,6 @@ export interface Product {
 export interface Warehouse {
   code: string;
   name: string;
-  group: '東' | '西';
   truckType: string; // T01〜T06
   maxPallets: number;
 }
@@ -60,8 +59,9 @@ export interface PalletType {
 /** productCode → 週間生産数 */
 export type ProductionPlan = Record<string, number>;
 
-/** productCode → warehouseCode → 配分比率(%) */
-export type DistributionRatios = Record<string, Record<string, number>>;
+/** productCode → warehouseCode → 拠点別 基準在庫数（個）
+ *  各拠点で維持したい目標在庫。現在庫がこれを下回った分（不足数）を生産から補充する。 */
+export type BaselineStock = Record<string, Record<string, number>>;
 
 /** productCode → 日付(YYYY-MM-DD) → 日別生産数（個） */
 export type DailyProductionPlan = Record<string, Record<string, number>>;

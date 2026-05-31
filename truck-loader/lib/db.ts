@@ -14,7 +14,7 @@ import { authOptions } from './authOptions';
 import bcrypt from 'bcryptjs';
 import type {
   Factory, Product, Warehouse, TruckType, PalletType,
-  ProductionPlan, DailyProductionPlan, DistributionRatios,
+  ProductionPlan, DailyProductionPlan, BaselineStock,
   InventoryStock, LocationStock, WeeklyShippingSchedule, InTransitStock, PlannedSales,
   OperatingDays, SendQtyManual, NonWorkingDates,
 } from './types';
@@ -220,13 +220,12 @@ export async function deduplicateProducts(): Promise<number> {
 export async function loadWarehouses(): Promise<Warehouse[]> {
   const cid = await getCompanyId();
   const rows = await sql`
-    SELECT code, name, "group", truck_type, max_pallets
+    SELECT code, name, truck_type, max_pallets
     FROM warehouses WHERE company_id = ${cid} ORDER BY code
   `;
   return rows.map((r) => ({
     code: r.code as string,
     name: r.name as string,
-    group: r.group as '東' | '西',
     truckType: r.truck_type as string,
     maxPallets: r.max_pallets as number,
   }));
@@ -234,12 +233,12 @@ export async function loadWarehouses(): Promise<Warehouse[]> {
 
 export async function upsertWarehouse(w: Warehouse) {
   const cid = await getCompanyId();
+  // "group"（旧・東西区分）列は廃止。DB列は NOT NULL のため空文字で互換維持。
   await sql`
     INSERT INTO warehouses (company_id, code, name, "group", truck_type, max_pallets)
-    VALUES (${cid}, ${w.code}, ${w.name}, ${w.group}, ${w.truckType}, ${w.maxPallets})
+    VALUES (${cid}, ${w.code}, ${w.name}, '', ${w.truckType}, ${w.maxPallets})
     ON CONFLICT (company_id, code) DO UPDATE SET
       name        = EXCLUDED.name,
-      "group"     = EXCLUDED."group",
       truck_type  = EXCLUDED.truck_type,
       max_pallets = EXCLUDED.max_pallets
   `;
@@ -395,38 +394,38 @@ export async function upsertDailyProductionQty(productCode: string, date: string
   }
 }
 
-// ─── Distribution Ratios ─────────────────────────────────────────────────────
+// ─── Baseline Stock（拠点別 基準在庫数） ───────────────────────────────────────
 
-export async function loadDistributionRatios(): Promise<DistributionRatios> {
+export async function loadBaselineStock(): Promise<BaselineStock> {
   const cid = await getCompanyId();
   const rows = await sql`
-    SELECT product_code, warehouse_code, ratio FROM distribution_ratios WHERE company_id = ${cid}
+    SELECT product_code, warehouse_code, qty FROM baseline_stock WHERE company_id = ${cid}
   `;
-  const ratios: DistributionRatios = {};
+  const baseline: BaselineStock = {};
   for (const r of rows) {
-    if (!ratios[r.product_code as string]) ratios[r.product_code as string] = {};
-    ratios[r.product_code as string][r.warehouse_code as string] = r.ratio as number;
+    if (!baseline[r.product_code as string]) baseline[r.product_code as string] = {};
+    baseline[r.product_code as string][r.warehouse_code as string] = r.qty as number;
   }
-  return ratios;
+  return baseline;
 }
 
-export async function upsertDistributionRatio(productCode: string, warehouseCode: string, ratio: number) {
+export async function upsertBaseline(productCode: string, warehouseCode: string, qty: number) {
   const cid = await getCompanyId();
   await sql`
-    INSERT INTO distribution_ratios (company_id, product_code, warehouse_code, ratio)
-    VALUES (${cid}, ${productCode}, ${warehouseCode}, ${ratio})
-    ON CONFLICT (company_id, product_code, warehouse_code) DO UPDATE SET ratio = EXCLUDED.ratio
+    INSERT INTO baseline_stock (company_id, product_code, warehouse_code, qty)
+    VALUES (${cid}, ${productCode}, ${warehouseCode}, ${qty})
+    ON CONFLICT (company_id, product_code, warehouse_code) DO UPDATE SET qty = EXCLUDED.qty
   `;
 }
 
-export async function replaceAllDistributionRatios(ratios: DistributionRatios) {
+export async function replaceAllBaselineStock(baseline: BaselineStock) {
   const cid = await getCompanyId();
-  await sql`DELETE FROM distribution_ratios WHERE company_id = ${cid}`;
-  for (const [pc, whs] of Object.entries(ratios)) {
-    for (const [wc, ratio] of Object.entries(whs)) {
+  await sql`DELETE FROM baseline_stock WHERE company_id = ${cid}`;
+  for (const [pc, whs] of Object.entries(baseline)) {
+    for (const [wc, qty] of Object.entries(whs)) {
       await sql`
-        INSERT INTO distribution_ratios (company_id, product_code, warehouse_code, ratio)
-        VALUES (${cid}, ${pc}, ${wc}, ${ratio})
+        INSERT INTO baseline_stock (company_id, product_code, warehouse_code, qty)
+        VALUES (${cid}, ${pc}, ${wc}, ${qty})
       `;
     }
   }

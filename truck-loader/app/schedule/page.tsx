@@ -41,7 +41,7 @@ function formatWeekLabel(monday: Date): string {
 export default function SchedulePage() {
   const {
     factories, products, warehouses, truckTypes,
-    productionPlan, distributionRatios, inventoryStock, locationStock,
+    productionPlan, baselineStock, locationStock,
     weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual, setShippingDay,
   } = useAppStore();
 
@@ -60,20 +60,20 @@ export default function SchedulePage() {
     return warehouses.filter((wh) => {
       if (seen.has(wh.name)) return false;
       const allCodes = warehouses.filter((w) => w.name === wh.name);
-      const hasRatio = factoryProducts.some((p) => allCodes.some((w) => (distributionRatios[p.code]?.[w.code] ?? 0) > 0));
-      if (hasRatio) { seen.add(wh.name); return true; }
+      const hasBaseline = factoryProducts.some((p) => allCodes.some((w) => (baselineStock[p.code]?.[w.code] ?? 0) > 0));
+      if (hasBaseline) { seen.add(wh.name); return true; }
       return false;
     });
-  }, [factoryProducts, warehouses, distributionRatios]);
+  }, [factoryProducts, warehouses, baselineStock]);
 
   const weeklyPlans = useMemo(
     () =>
       calcWeeklyPlans(
         warehouses, products, truckTypes, factories,
-        productionPlan, distributionRatios, inventoryStock, locationStock,
+        productionPlan, baselineStock, locationStock,
         weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual,
       ),
-    [warehouses, products, truckTypes, factories, productionPlan, distributionRatios, inventoryStock, locationStock, weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual],
+    [warehouses, products, truckTypes, factories, productionPlan, baselineStock, locationStock, weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual],
   );
 
   const factoryPlans = weeklyPlans[selectedFactory] ?? [];
@@ -205,7 +205,7 @@ export default function SchedulePage() {
                 {relevantWarehouses.length === 0 ? (
                   <tr>
                     <td colSpan={9} style={{ padding: '24px', textAlign: 'center', color: '#9ca3af', fontStyle: 'italic' }}>
-                      配分比率が設定された拠点がありません
+                      基準在庫数が設定された拠点がありません
                     </td>
                   </tr>
                 ) : (
@@ -217,12 +217,6 @@ export default function SchedulePage() {
                         {/* 拠点名 */}
                         <td style={{ padding: '8px 16px', position: 'sticky', left: 0, background: ri % 2 === 0 ? 'white' : '#fafafa', zIndex: 10, borderRight: '1px solid #f3f4f6' }}>
                           <div className="flex items-center gap-2">
-                            <span style={{
-                              fontSize: 9, padding: '1px 5px', borderRadius: 3, fontWeight: 700,
-                              background: wh.group === '東' ? '#dbeafe' : '#fee2e2',
-                              color: wh.group === '東' ? '#1e40af' : '#b91c1c',
-                              border: `1px solid ${wh.group === '東' ? '#bfdbfe' : '#fecaca'}`,
-                            }}>{wh.group}</span>
                             <div>
                               <div style={{ fontWeight: 600, color: '#374151' }}>{wh.name}</div>
                               <div style={{ fontSize: 10, color: '#9ca3af', fontFamily: 'monospace' }}>{wh.code}</div>

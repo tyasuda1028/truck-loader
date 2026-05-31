@@ -4,18 +4,20 @@ import React from 'react';
 import { useMemo, useState, useRef } from 'react';
 import { useAppStore } from '@/lib/store';
 import { calcAllPlans, calcSendQty } from '@/lib/calculations';
+import { useAiRecommendation } from '@/lib/useAiRecommendation';
+import { AIRecommendationPanel } from '@/components/AIRecommendationPanel';
 import {
   parseProductionCSV,
   parseLocationStockCSV,
   parsePlannedSalesCSV,
   parseInTransitStockCSV,
-  parseDistributionRatiosCSV,
+  parseBaselineStockCSV,
   parseSendQtyCSV,
   generateProductionTemplate,
   generateLocationStockTemplate,
   generatePlannedSalesTemplate,
   generateInTransitStockTemplate,
-  generateDistributionRatiosTemplate,
+  generateBaselineStockTemplate,
   generateSendQtyCSV,
   downloadCSV,
 } from '@/lib/csv';
@@ -106,23 +108,30 @@ function generateWeekCSV(
   return '﻿' + [header, ...rows].join('\r\n');
 }
 
-type Tab = 'production' | 'location' | 'transit' | 'sales' | 'ratio' | 'sendqty';
+type Tab = 'production' | 'location' | 'transit' | 'sales' | 'baseline' | 'sendqty';
 
 export default function ProductionPage() {
   const {
     factories, products, warehouses, truckTypes,
-    productionPlan, dailyProductionPlan, distributionRatios,
-    locationStock, inTransitStock, plannedSales, inventoryStock,
+    productionPlan, dailyProductionPlan, baselineStock,
+    locationStock, inTransitStock, plannedSales,
     operatingDays, nonWorkingDates,
     sendQtyManual,
-    setProductionQty, setProductionDays, setRatio, setLocationStock, setPlannedSales, setInTransitStock,
+    setProductionQty, setProductionDays, setBaseline, setLocationStock, setPlannedSales, setInTransitStock,
     setSendQtyManual, clearSendQtyManualCell, importSendQtyManualBulk, clearSendQtyManual,
-    importProductionPlan, importLocationStockBulk, importPlannedSalesBulk, importInTransitStockBulk, importDistributionRatiosBulk,
-    clearProductionPlan, clearLocationStock, clearPlannedSales, clearInTransitStock, clearDistributionRatios,
+    importProductionPlan, importLocationStockBulk, importPlannedSalesBulk, importInTransitStockBulk, importBaselineStockBulk,
+    clearProductionPlan, clearLocationStock, clearPlannedSales, clearInTransitStock, clearBaselineStock,
   } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<Tab>('production');
   const now = new Date();
+
+  // AI提案（送り数の見直しなど）
+  const ai = useAiRecommendation();
+  const productNameMap = useMemo(
+    () => Object.fromEntries(products.map((p) => [p.code, p.name])),
+    [products],
+  );
 
   // 生産計画 CSV
   const prodFileRef = useRef<HTMLInputElement>(null);
@@ -149,10 +158,10 @@ export default function ProductionPage() {
   const [transitPreview,  setTransitPreview]  = useState<ReturnType<typeof parseInTransitStockCSV> | null>(null);
   const [transitImported, setTransitImported] = useState(false);
 
-  // 配分比率 CSV
-  const ratioFileRef = useRef<HTMLInputElement>(null);
-  const [ratioPreview,  setRatioPreview]  = useState<ReturnType<typeof parseDistributionRatiosCSV> | null>(null);
-  const [ratioImported, setRatioImported] = useState(false);
+  // 基準在庫数 CSV
+  const baselineFileRef = useRef<HTMLInputElement>(null);
+  const [baselinePreview,  setBaselinePreview]  = useState<ReturnType<typeof parseBaselineStockCSV> | null>(null);
+  const [baselineImported, setBaselineImported] = useState(false);
 
   // 送り数 CSV
   const sendQtyFileRef = useRef<HTMLInputElement>(null);
@@ -167,19 +176,18 @@ export default function ProductionPage() {
     location:   emptyFilter(),
     transit:    emptyFilter(),
     sales:      emptyFilter(),
-    ratio:      emptyFilter(),
+    baseline:   emptyFilter(),
     sendqty:    emptyFilter(),
   });
   const setFilter = (partial: Partial<FilterState>) =>
     setFilters((prev) => ({ ...prev, [activeTab]: { ...prev[activeTab], ...partial } }));
 
-  const [warehouseGroupFilter, setWarehouseGroupFilter] = useState<'all' | '東' | '西'>('all');
   const [clearFlash, setClearFlash] = useState<string | null>(null);
 
   // 自動計算送り数（手動上書き前）
   const sendQtyCalc = useMemo(
-    () => calcSendQty(products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales),
-    [products, warehouses, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales],
+    () => calcSendQty(products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales),
+    [products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales],
   );
 
   // 有効送り数（手動上書きを反映）
@@ -198,8 +206,8 @@ export default function ProductionPage() {
   }, [products, warehouses, sendQtyCalc, sendQtyManual]);
 
   const plans = useMemo(
-    () => calcAllPlans(warehouses, products, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales, sendQtyManual),
-    [warehouses, products, truckTypes, productionPlan, distributionRatios, inventoryStock, locationStock, inTransitStock, plannedSales, sendQtyManual],
+    () => calcAllPlans(warehouses, products, truckTypes, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales, sendQtyManual),
+    [warehouses, products, truckTypes, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales, sendQtyManual],
   );
 
   // Map from warehouse name → all warehouse objects with that name
@@ -213,16 +221,16 @@ export default function ProductionPage() {
   }, [warehouses]);
 
   const displayWarehouses = useMemo(
-    () => dedupeByName(warehouseGroupFilter === 'all' ? warehouses : warehouses.filter(wh => wh.group === warehouseGroupFilter)),
-    [warehouses, warehouseGroupFilter],
+    () => dedupeByName(warehouses),
+    [warehouses],
   );
   const displayActiveWarehouses = useMemo(
     () => displayWarehouses.filter(wh =>
       products.some(p =>
-        (warehousesByName.get(wh.name) ?? [wh]).some(w => (distributionRatios[p.code]?.[w.code] ?? 0) > 0)
+        (warehousesByName.get(wh.name) ?? [wh]).some(w => (baselineStock[p.code]?.[w.code] ?? 0) > 0)
       )
     ),
-    [displayWarehouses, products, distributionRatios, warehousesByName],
+    [displayWarehouses, products, baselineStock, warehousesByName],
   );
 
   // フィルター済み製品リスト
@@ -251,7 +259,7 @@ export default function ProductionPage() {
     location:   '拠点別在庫数',
     transit:    '輸送中数量',
     sales:      '予定出荷数',
-    ratio:      '配分比率',
+    baseline:   '基準在庫数',
     sendqty:    '送り数（手動値）',
   };
   const handleClear = (tab: Tab) => {
@@ -261,7 +269,7 @@ export default function ProductionPage() {
     if (tab === 'location')   clearLocationStock();
     if (tab === 'transit')    clearInTransitStock();
     if (tab === 'sales')      clearPlannedSales();
-    if (tab === 'ratio')      clearDistributionRatios();
+    if (tab === 'baseline')   clearBaselineStock();
     if (tab === 'sendqty')    clearSendQtyManual();
     setClearFlash(`「${label}」をクリアしました`);
     setTimeout(() => setClearFlash(null), 3000);
@@ -301,13 +309,13 @@ export default function ProductionPage() {
     reader.readAsText(file, 'utf-8');
   };
 
-  const handleRatioFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBaselineFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
-      setRatioPreview(parseDistributionRatiosCSV(ev.target?.result as string, products, warehouses, distributionRatios));
-      setRatioImported(false);
+      setBaselinePreview(parseBaselineStockCSV(ev.target?.result as string, products, warehouses, baselineStock));
+      setBaselineImported(false);
     };
     reader.readAsText(file, 'utf-8');
   };
@@ -328,7 +336,7 @@ export default function ProductionPage() {
     { key: 'location',   label: '🏭 拠点別現在庫' },
     { key: 'transit',    label: '🚚 輸送中（前回決定分）' },
     { key: 'sales',      label: '🛒 予定出荷数' },
-    { key: 'ratio',      label: '📊 配分比率' },
+    { key: 'baseline',   label: '📊 基準在庫数' },
     { key: 'sendqty',    label: '📦 送り数設定' },
   ];
 
@@ -355,7 +363,7 @@ export default function ProductionPage() {
       <div className="mb-6">
         <h1 className="text-xl font-bold text-slate-800">配送計画入力</h1>
         <p className="text-sm text-slate-500 mt-0.5">
-          拠点別現在庫・輸送中数量・予定出荷数・配分比率から不足数を算出し、生産数で補充する送り数を計算します
+          拠点別現在庫・輸送中数量・予定出荷数・基準在庫数から不足数を算出し、生産数で補充する送り数を計算します
         </p>
       </div>
 
@@ -440,24 +448,6 @@ export default function ProductionPage() {
             {filteredProducts.length} / {products.length} 製品を表示中
           </span>
         )}
-        {/* 拠点グループ切替 */}
-        <div className="flex items-center gap-1 ml-auto pl-3 border-l border-slate-300">
-          <span className="text-xs text-slate-500 shrink-0">拠点：</span>
-          {(['all', '東', '西'] as const).map((g) => (
-            <button
-              key={g}
-              onClick={() => setWarehouseGroupFilter(g)}
-              className={clsx(
-                'text-xs px-2.5 py-1 rounded transition-colors border',
-                warehouseGroupFilter === g
-                  ? 'bg-brand-600 text-white border-brand-600'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50',
-              )}
-            >
-              {g === 'all' ? '全拠点' : `${g}グループ`}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* ── タブ①：週間生産数 ── */}
@@ -905,31 +895,11 @@ export default function ProductionPage() {
             <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
               <table className="text-xs border-collapse w-full">
                 <thead>
-                  {/* Row 1: group headers */}
                   <tr className="bg-slate-50">
-                    <th rowSpan={2} className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
-                    <th rowSpan={2} className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
-                    {(['東', '西'] as const).map((g) => {
-                      const groupWarehouses = displayWarehouses.filter(wh => wh.group === g);
-                      if (groupWarehouses.length === 0) return null;
-                      return (
-                        <th key={g} colSpan={groupWarehouses.length}
-                          className={clsx(
-                            'px-2 py-1.5 text-center text-xs font-bold border-b border-slate-200',
-                            g === '東' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700',
-                          )}>
-                          {g}グループ
-                        </th>
-                      );
-                    })}
-                  </tr>
-                  {/* Row 2: individual warehouse columns */}
-                  <tr className="bg-slate-50">
+                    <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
+                    <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
                     {displayWarehouses.map((wh) => (
-                      <th key={wh.name} className={clsx(
-                        'px-2 py-1.5 text-center font-semibold text-slate-500 min-w-[72px]',
-                        wh.group === '東' ? 'bg-blue-50/50' : 'bg-orange-50/50',
-                      )}>
+                      <th key={wh.name} className="px-2 py-1.5 text-center font-semibold text-slate-500 min-w-[72px]">
                         <div className="font-bold text-slate-500 text-[10px]">{wh.name.slice(0, 6)}</div>
                       </th>
                     ))}
@@ -1040,6 +1010,16 @@ export default function ProductionPage() {
             </div>
           </div>
 
+          {/* AI提案：送り数の見直し・警告など */}
+          <AIRecommendationPanel
+            data={ai.data}
+            loading={ai.loading}
+            error={ai.error}
+            onGenerate={ai.generate}
+            onApplyAdjustment={(pc, wc, qty) => setSendQtyManual(pc, wc, qty)}
+            productNames={productNameMap}
+          />
+
         </div>
       )}
 
@@ -1149,35 +1129,15 @@ export default function ProductionPage() {
             <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
               <table className="text-xs border-collapse w-full">
                 <thead>
-                  {/* Row 1: group headers */}
                   <tr className="bg-slate-50">
-                    <th rowSpan={2} className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
-                    <th rowSpan={2} className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
-                    {(['東', '西'] as const).map((g) => {
-                      const groupWarehouses = displayWarehouses.filter(wh => wh.group === g);
-                      if (groupWarehouses.length === 0) return null;
-                      return (
-                        <th key={g} colSpan={groupWarehouses.length}
-                          className={clsx(
-                            'px-2 py-1.5 text-center text-xs font-bold border-b border-slate-200',
-                            g === '東' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700',
-                          )}>
-                          {g}グループ
-                        </th>
-                      );
-                    })}
-                    <th rowSpan={2} className="px-3 py-2 text-right font-semibold text-slate-500 min-w-[80px] bg-slate-50">合計</th>
-                  </tr>
-                  {/* Row 2: individual warehouse columns */}
-                  <tr className="bg-slate-50">
+                    <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
+                    <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
                     {displayWarehouses.map((wh) => (
-                      <th key={wh.name} className={clsx(
-                        'px-2 py-1.5 text-center font-semibold text-slate-500 min-w-[72px]',
-                        wh.group === '東' ? 'bg-blue-50/50' : 'bg-orange-50/50',
-                      )}>
+                      <th key={wh.name} className="px-2 py-1.5 text-center font-semibold text-slate-500 min-w-[72px]">
                         <div className="font-bold text-slate-500 text-[10px]">{wh.name.slice(0, 6)}</div>
                       </th>
                     ))}
+                    <th className="px-3 py-2 text-right font-semibold text-slate-500 min-w-[80px] bg-slate-50">合計</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1372,31 +1332,11 @@ export default function ProductionPage() {
             <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
               <table className="text-xs border-collapse w-full">
                 <thead>
-                  {/* Row 1: group headers */}
                   <tr className="bg-slate-50">
-                    <th rowSpan={2} className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
-                    <th rowSpan={2} className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
-                    {(['東', '西'] as const).map((g) => {
-                      const groupWarehouses = displayWarehouses.filter(wh => wh.group === g);
-                      if (groupWarehouses.length === 0) return null;
-                      return (
-                        <th key={g} colSpan={groupWarehouses.length}
-                          className={clsx(
-                            'px-2 py-1.5 text-center text-xs font-bold border-b border-slate-200',
-                            g === '東' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700',
-                          )}>
-                          {g}グループ
-                        </th>
-                      );
-                    })}
-                  </tr>
-                  {/* Row 2: individual warehouse columns */}
-                  <tr className="bg-slate-50">
+                    <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
+                    <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
                     {displayWarehouses.map((wh) => (
-                      <th key={wh.name} className={clsx(
-                        'px-2 py-1.5 text-center font-semibold text-slate-500 min-w-[72px]',
-                        wh.group === '東' ? 'bg-blue-50/50' : 'bg-orange-50/50',
-                      )}>
+                      <th key={wh.name} className="px-2 py-1.5 text-center font-semibold text-slate-500 min-w-[72px]">
                         <div className="font-bold text-slate-500 text-[10px]">{wh.name.slice(0, 6)}</div>
                       </th>
                     ))}
@@ -1461,18 +1401,18 @@ export default function ProductionPage() {
         </div>
       )}
 
-      {/* ── タブ④：配分比率 ── */}
-      {activeTab === 'ratio' && (
+      {/* ── タブ④：基準在庫数 ── */}
+      {activeTab === 'baseline' && (
         <div className="flex flex-col gap-6">
           <p className="text-xs text-slate-500 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-            💡 各製品の全体在庫を各拠点に何%配分するかを設定します。横計が100%になるよう設定してください。
+            💡 各製品について、各拠点で維持したい目標在庫数（個）を設定します。現在庫がこの基準を下回った分（不足数）を生産数から補充します。
           </p>
 
           {/* CSV インポート */}
           <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
             <h2 className="text-sm font-bold text-slate-700 mb-1">CSVインポート / ダウンロード</h2>
             <p className="text-xs text-slate-500 mb-4">
-              製品×拠点のマトリクス形式（ワイド形式）で配分比率を一括管理できます。各セルに0〜100の整数を入力してください。
+              製品×拠点のマトリクス形式（ワイド形式）で基準在庫数を一括管理できます。各セルに0以上の整数（個数）を入力してください。
               拠点列のヘッダーは<strong>拠点コードまたは拠点名</strong>のどちらでも認識します（大文字小文字も無視・列順任意）。
               CSVに含まれない製品行・拠点列の既存値は保持されます。
             </p>
@@ -1480,8 +1420,8 @@ export default function ProductionPage() {
               <span className="text-xs text-slate-600 font-medium">テンプレートDL：</span>
               <button
                 onClick={() => downloadCSV(
-                  generateDistributionRatiosTemplate(products, warehouses, distributionRatios),
-                  `配分比率_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.csv`,
+                  generateBaselineStockTemplate(products, warehouses, baselineStock),
+                  `基準在庫数_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.csv`,
                 )}
                 className="text-xs px-3 py-1.5 bg-slate-700 text-white rounded hover:bg-slate-800 transition-colors"
               >
@@ -1489,26 +1429,26 @@ export default function ProductionPage() {
               </button>
             </div>
             <div className="flex items-center gap-3 mb-4">
-              <input ref={ratioFileRef} type="file" accept=".csv,text/csv" onChange={handleRatioFile} className="hidden" />
+              <input ref={baselineFileRef} type="file" accept=".csv,text/csv" onChange={handleBaselineFile} className="hidden" />
               <button
-                onClick={() => { ratioFileRef.current?.click(); setRatioPreview(null); setRatioImported(false); }}
+                onClick={() => { baselineFileRef.current?.click(); setBaselinePreview(null); setBaselineImported(false); }}
                 className="text-sm px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
               >
                 CSVファイルを選択
               </button>
-              {ratioPreview && (
+              {baselinePreview && (
                 <span className="text-xs text-slate-500">
-                  {ratioPreview.rows.length}製品分を読み込みました
+                  {baselinePreview.rows.length}製品分を読み込みました
                 </span>
               )}
             </div>
-            {ratioPreview?.warnings && ratioPreview.warnings.length > 0 && (
+            {baselinePreview?.warnings && baselinePreview.warnings.length > 0 && (
               <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 space-y-0.5">
-                {ratioPreview.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+                {baselinePreview.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
               </div>
             )}
-            {ratioPreview && ratioPreview.rows.length > 0 && (() => {
-              const whCodes = Object.keys(ratioPreview.rows[0]?.whRatio ?? {});
+            {baselinePreview && baselinePreview.rows.length > 0 && (() => {
+              const whCodes = Object.keys(baselinePreview.rows[0]?.whQty ?? {});
               return (
                 <div className="overflow-x-auto mb-4">
                   <table className="text-xs border-collapse w-full">
@@ -1521,12 +1461,12 @@ export default function ProductionPage() {
                             <div className="text-[10px] text-slate-400">{warehouses.find(w => w.code === wc)?.name.slice(0, 4)}</div>
                           </th>
                         ))}
-                        <th className="px-3 py-2 text-right font-semibold text-slate-500 min-w-[60px]">合計%</th>
+                        <th className="px-3 py-2 text-right font-semibold text-slate-500 min-w-[60px]">合計(個)</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {ratioPreview.rows.map((row) => {
-                        const total = whCodes.reduce((s, wc) => s + (row.whRatio[wc] ?? 0), 0);
+                      {baselinePreview.rows.map((row) => {
+                        const total = whCodes.reduce((s, wc) => s + (row.whQty[wc] ?? 0), 0);
                         return (
                           <tr key={row.code} className={clsx('border-t border-slate-100', !row.found && 'bg-amber-50')}>
                             <td className="px-3 py-1.5 sticky left-0 bg-white border-r border-slate-200">
@@ -1534,17 +1474,15 @@ export default function ProductionPage() {
                               <div className="text-[10px] text-slate-400 font-mono">{row.code}</div>
                             </td>
                             {whCodes.map((wc) => {
-                              const val = row.whRatio[wc] ?? 0;
+                              const val = row.whQty[wc] ?? 0;
                               return (
                                 <td key={wc} className="px-2 py-1.5 text-center text-slate-600">
-                                  {val > 0 ? <span className="font-medium">{val}%</span> : <span className="text-slate-300">—</span>}
+                                  {val > 0 ? <span className="font-medium">{val.toLocaleString()}</span> : <span className="text-slate-300">—</span>}
                                 </td>
                               );
                             })}
-                            <td className={clsx('px-3 py-1.5 text-right font-bold',
-                              total > 100 ? 'text-red-500' : total === 100 ? 'text-emerald-600' : 'text-amber-500'
-                            )}>
-                              {total}%
+                            <td className="px-3 py-1.5 text-right font-bold text-slate-600">
+                              {total.toLocaleString()}
                             </td>
                           </tr>
                         );
@@ -1554,19 +1492,19 @@ export default function ProductionPage() {
                 </div>
               );
             })()}
-            {ratioPreview && (
+            {baselinePreview && (
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => { importDistributionRatiosBulk(ratioPreview.ratios); setRatioImported(true); }}
-                  disabled={ratioImported}
+                  onClick={() => { importBaselineStockBulk(baselinePreview.baseline); setBaselineImported(true); }}
+                  disabled={baselineImported}
                   className={clsx(
                     'px-4 py-2 text-sm rounded-lg transition-colors',
-                    ratioImported ? 'bg-emerald-100 text-emerald-700 cursor-default' : 'bg-brand-600 text-white hover:bg-brand-700',
+                    baselineImported ? 'bg-emerald-100 text-emerald-700 cursor-default' : 'bg-brand-600 text-white hover:bg-brand-700',
                   )}
                 >
-                  {ratioImported ? '✓ インポート済み' : 'インポートする'}
+                  {baselineImported ? '✓ インポート済み' : 'インポートする'}
                 </button>
-                {ratioImported && <span className="text-xs text-emerald-600">配分比率に反映されました</span>}
+                {baselineImported && <span className="text-xs text-emerald-600">基準在庫数に反映されました</span>}
               </div>
             )}
           </div>
@@ -1575,54 +1513,33 @@ export default function ProductionPage() {
             <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
               <table className="text-xs border-collapse w-full">
                 <thead>
-                  {/* Row 1: group headers */}
                   <tr className="bg-slate-50">
-                    <th rowSpan={2} className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
-                    <th rowSpan={2} className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
-                    {(['東', '西'] as const).map((g) => {
-                      const groupWarehouses = displayWarehouses.filter(wh => wh.group === g);
-                      if (groupWarehouses.length === 0) return null;
-                      return (
-                        <th key={g} colSpan={groupWarehouses.length}
-                          className={clsx(
-                            'px-2 py-1.5 text-center text-xs font-bold border-b border-slate-200',
-                            g === '東' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700',
-                          )}>
-                          {g}グループ
-                        </th>
-                      );
-                    })}
-                    <th rowSpan={2} className="px-3 py-2 text-right font-semibold text-slate-500 min-w-[60px] bg-slate-50">合計%</th>
-                  </tr>
-                  {/* Row 2: individual warehouse columns */}
-                  <tr className="bg-slate-50">
+                    <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
+                    <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[180px]">製品名</th>
                     {displayWarehouses.map((wh) => (
-                      <th key={wh.code} className={clsx(
-                        'px-2 py-1.5 text-center font-semibold text-slate-500 min-w-[72px]',
-                        wh.group === '東' ? 'bg-blue-50/50' : 'bg-orange-50/50',
-                      )}>
+                      <th key={wh.code} className="px-2 py-1.5 text-center font-semibold text-slate-500 min-w-[72px]">
                         <div className="font-bold text-slate-500 text-[10px]">{wh.code}</div>
                         <div className="text-[9px] text-slate-400 leading-tight">{wh.name.slice(0, 4)}</div>
                       </th>
                     ))}
+                    <th className="px-3 py-2 text-right font-semibold text-slate-500 min-w-[60px] bg-slate-50">合計(個)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(() => {
                     // 週間生産数に入力がある製品のみ表示
-                    const ratioProducts = filteredProducts.filter(
+                    const baselineProducts = filteredProducts.filter(
                       (p) => (productionPlan[p.code] ?? 0) > 0,
                     );
-                    if (ratioProducts.length === 0) return (
+                    if (baselineProducts.length === 0) return (
                       <tr><td colSpan={2 + displayWarehouses.length + 1} className="px-4 py-8 text-center text-slate-400 text-sm">
                         週間生産数が入力されている製品がありません。先に週間生産数タブで数量を入力してください。
                       </td></tr>
                     );
-                    return ratioProducts.map((p) => {
+                    return baselineProducts.map((p) => {
                     const rowTotal = displayWarehouses.reduce(
-                      (s, wh) => s + (distributionRatios[p.code]?.[wh.code] ?? 0), 0,
+                      (s, wh) => s + (baselineStock[p.code]?.[wh.code] ?? 0), 0,
                     );
-                    const isOver = rowTotal > 100;
                     return (
                       <tr key={p.code} className="border-t border-slate-100 hover:bg-slate-50">
                         <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
@@ -1633,25 +1550,22 @@ export default function ProductionPage() {
                           </div>
                         </td>
                         {displayWarehouses.map((wh) => {
-                          const ratio = distributionRatios[p.code]?.[wh.code] ?? 0;
+                          const baseline = baselineStock[p.code]?.[wh.code] ?? 0;
                           return (
                             <td key={wh.code} className="px-1 py-1.5 text-center">
                               <input
-                                type="number" min={0} max={100}
-                                value={ratio === 0 ? '' : ratio}
-                                onChange={(e) => setRatio(p.code, wh.code, parseInt(e.target.value, 10) || 0)}
+                                type="number" min={0}
+                                value={baseline === 0 ? '' : baseline}
+                                onChange={(e) => setBaseline(p.code, wh.code, parseInt(e.target.value, 10) || 0)}
                                 placeholder="0"
-                                className="w-14 text-center border border-slate-200 rounded px-1 py-0.5 text-xs
+                                className="w-16 text-center border border-slate-200 rounded px-1 py-0.5 text-xs
                                            focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white"
                               />
                             </td>
                           );
                         })}
-                        <td className={clsx(
-                          'px-3 py-1.5 text-right font-bold',
-                          isOver ? 'text-red-500' : rowTotal === 100 ? 'text-emerald-600' : 'text-amber-500',
-                        )}>
-                          {rowTotal}%
+                        <td className="px-3 py-1.5 text-right font-bold text-slate-600">
+                          {rowTotal.toLocaleString()}
                         </td>
                       </tr>
                     );
@@ -1732,7 +1646,7 @@ export default function ProductionPage() {
       {activeTab === 'sendqty' && (
         <div className="flex flex-col gap-6">
           <div className="text-xs text-slate-500 bg-blue-50 border border-blue-200 rounded px-3 py-2">
-            💡 配分比率・在庫・生産計画から<strong className="text-blue-700">自動計算された送り数</strong>を確認し、必要に応じて直接修正できます。
+            💡 基準在庫数・在庫・生産計画から<strong className="text-blue-700">自動計算された送り数</strong>を確認し、必要に応じて直接修正できます。
             手動入力した値は青色で表示され、積載計画・出荷スケジュールに反映されます。空欄にすると自動計算値に戻ります。
           </div>
 
@@ -1840,35 +1754,15 @@ export default function ProductionPage() {
               <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
                 <table className="text-xs border-collapse w-full">
                   <thead>
-                  {/* Row 1: group headers */}
                   <tr className="bg-slate-50">
-                    <th rowSpan={2} className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
-                    <th rowSpan={2} className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[160px]">製品名</th>
-                    {(['東', '西'] as const).map((g) => {
-                      const groupWarehouses = displayWarehouses.filter(wh => wh.group === g);
-                      if (groupWarehouses.length === 0) return null;
-                      return (
-                        <th key={g} colSpan={groupWarehouses.length}
-                          className={clsx(
-                            'px-2 py-1.5 text-center text-xs font-bold border-b border-slate-200',
-                            g === '東' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700',
-                          )}>
-                          {g}グループ
-                        </th>
-                      );
-                    })}
-                    <th rowSpan={2} className="px-3 py-2 text-right font-semibold text-slate-500 min-w-[72px] bg-slate-50">合計</th>
-                  </tr>
-                  {/* Row 2: individual warehouse columns */}
-                  <tr className="bg-slate-50">
+                    <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 w-32">製品コード</th>
+                    <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-32 bg-slate-50 z-10 border-r border-slate-200 min-w-[160px]">製品名</th>
                     {displayWarehouses.map((wh) => (
-                      <th key={wh.name} className={clsx(
-                        'px-2 py-1.5 text-center font-semibold text-slate-500 min-w-[72px]',
-                        wh.group === '東' ? 'bg-blue-50/50' : 'bg-orange-50/50',
-                      )}>
+                      <th key={wh.name} className="px-2 py-1.5 text-center font-semibold text-slate-500 min-w-[72px]">
                         <div className="font-bold text-slate-500 text-[10px]">{wh.name.slice(0, 6)}</div>
                       </th>
                     ))}
+                    <th className="px-3 py-2 text-right font-semibold text-slate-500 min-w-[72px] bg-slate-50">合計</th>
                   </tr>
                 </thead>
                   <tbody>
@@ -2002,7 +1896,7 @@ export default function ProductionPage() {
                     ) && (
                       <tr>
                         <td colSpan={2 + displayWarehouses.length + 1} className="px-4 py-8 text-center text-slate-400 text-sm">
-                          送り数データがありません。配分比率と生産計画を設定してください。
+                          送り数データがありません。基準在庫数と生産計画を設定してください。
                         </td>
                       </tr>
                     )}

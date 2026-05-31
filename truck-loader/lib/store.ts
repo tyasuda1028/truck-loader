@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type {
   Factory, Product, Warehouse, TruckType, PalletType,
-  ProductionPlan, DailyProductionPlan, DistributionRatios,
+  ProductionPlan, DailyProductionPlan, BaselineStock,
   InventoryStock, LocationStock, WeeklyShippingSchedule, InTransitStock, PlannedSales,
   OperatingDays, SendQtyManual, NonWorkingDates,
 } from './types';
@@ -9,7 +9,7 @@ import {
   DEFAULT_TRUCK_TYPES,
   DEFAULT_PALLET_TYPES,
   DEFAULT_PRODUCTION_PLAN,
-  DEFAULT_DISTRIBUTION_RATIOS,
+  DEFAULT_BASELINE_STOCK,
   DEFAULT_INVENTORY_STOCK,
   DEFAULT_LOCATION_STOCK,
   DEFAULT_SHIPPING_SCHEDULE,
@@ -31,7 +31,7 @@ interface AppState {
   // ─── 入力データ ───────────────────────────────────────────
   productionPlan: ProductionPlan;
   dailyProductionPlan: DailyProductionPlan;
-  distributionRatios: DistributionRatios;
+  baselineStock: BaselineStock;
   inventoryStock: InventoryStock;
   locationStock: LocationStock;
   weeklyShippingSchedule: WeeklyShippingSchedule;
@@ -52,9 +52,9 @@ interface AppState {
   setOperatingDay: (factoryCode: string, dayIndex: number, active: boolean) => void;
   toggleNonWorkingDate: (factoryCode: string, date: string) => void;
   setProductionQty: (productCode: string, qty: number) => void;
-  setRatio: (productCode: string, warehouseCode: string, ratio: number) => void;
-  importDistributionRatiosBulk: (ratios: DistributionRatios) => void;
-  clearDistributionRatios: () => void;
+  setBaseline: (productCode: string, warehouseCode: string, qty: number) => void;
+  importBaselineStockBulk: (baseline: BaselineStock) => void;
+  clearBaselineStock: () => void;
   setInventoryStock: (productCode: string, qty: number) => void;
   setLocationStock: (productCode: string, warehouseCode: string, qty: number) => void;
   setProductionDays: (productCode: string, dateQtyMap: Record<string, number>) => void;
@@ -105,7 +105,7 @@ const defaultState = {
   palletTypes: DEFAULT_PALLET_TYPES,
   productionPlan: DEFAULT_PRODUCTION_PLAN,
   dailyProductionPlan: {} as DailyProductionPlan,
-  distributionRatios: DEFAULT_DISTRIBUTION_RATIOS,
+  baselineStock: DEFAULT_BASELINE_STOCK,
   inventoryStock: DEFAULT_INVENTORY_STOCK,
   locationStock: DEFAULT_LOCATION_STOCK,
   weeklyShippingSchedule: DEFAULT_SHIPPING_SCHEDULE,
@@ -130,7 +130,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         palletTypes,
         productionPlan,
         dailyProductionPlan,
-        distributionRatios,
+        baselineStock,
         inventoryStock,
         locationStock,
         weeklyShippingSchedule,
@@ -147,7 +147,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         db.loadPalletTypes(),
         db.loadProductionPlan(),
         db.loadDailyProductionPlan(),
-        db.loadDistributionRatios(),
+        db.loadBaselineStock(),
         db.loadInventoryStock(),
         db.loadLocationStock(),
         db.loadWeeklyShippingSchedule(),
@@ -168,7 +168,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
         palletTypes,
         productionPlan,
         dailyProductionPlan,
-        distributionRatios,
+        baselineStock,
         inventoryStock,
         locationStock,
         weeklyShippingSchedule,
@@ -291,25 +291,25 @@ export const useAppStore = create<AppState>()((set, get) => ({
     Promise.all(products.map((p) => db.upsertProductionQty(p.code, 0))).catch(console.error);
   },
 
-  // ─── 配分比率 ─────────────────────────────────────────────
-  setRatio: (productCode, warehouseCode, ratio) => {
+  // ─── 拠点別 基準在庫数 ────────────────────────────────────
+  setBaseline: (productCode, warehouseCode, qty) => {
     set((s) => ({
-      distributionRatios: {
-        ...s.distributionRatios,
-        [productCode]: { ...s.distributionRatios[productCode], [warehouseCode]: ratio },
+      baselineStock: {
+        ...s.baselineStock,
+        [productCode]: { ...s.baselineStock[productCode], [warehouseCode]: qty },
       },
     }));
-    db.upsertDistributionRatio(productCode, warehouseCode, ratio).catch(console.error);
+    db.upsertBaseline(productCode, warehouseCode, qty).catch(console.error);
   },
 
-  importDistributionRatiosBulk: (ratios) => {
-    set(() => ({ distributionRatios: ratios }));
-    db.replaceAllDistributionRatios(ratios).catch(console.error);
+  importBaselineStockBulk: (baseline) => {
+    set(() => ({ baselineStock: baseline }));
+    db.replaceAllBaselineStock(baseline).catch(console.error);
   },
 
-  clearDistributionRatios: () => {
-    set(() => ({ distributionRatios: {} }));
-    db.replaceAllDistributionRatios({}).catch(console.error);
+  clearBaselineStock: () => {
+    set(() => ({ baselineStock: {} }));
+    db.replaceAllBaselineStock({}).catch(console.error);
   },
 
   // ─── 在庫 ─────────────────────────────────────────────────
