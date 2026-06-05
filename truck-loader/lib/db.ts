@@ -18,6 +18,11 @@ import type {
   InventoryStock, LocationStock, WeeklyShippingSchedule, InTransitStock, PlannedSales,
   OperatingDays, SendQtyManual, NonWorkingDates,
 } from './types';
+import {
+  SAMPLE_FACTORIES, SAMPLE_PRODUCTS, SAMPLE_WAREHOUSES, SAMPLE_PRODUCTION_PLAN,
+  SAMPLE_BASELINE_STOCK, SAMPLE_LOCATION_STOCK, SAMPLE_PLANNED_SALES,
+  SAMPLE_OPERATING_DAYS, SAMPLE_FACTORY_SCHEDULE,
+} from './sampleData';
 
 // ─── Auth helper ─────────────────────────────────────────────────────────────
 
@@ -753,4 +758,99 @@ export async function seedDefaultsForCompany(companyId: string): Promise<void> {
         loaded_height_mm = EXCLUDED.loaded_height_mm
     `;
   }
+}
+
+// ─── サンプルデータ投入（オンボーディング「サンプルで始める」用）─────────────
+
+/** product×warehouse の数量マップを1テーブルへバルクINSERT（DELETE後・テナント単位） */
+async function bulkInsertWhQty(
+  cid: string,
+  table: 'baseline_stock' | 'location_stock' | 'planned_sales',
+  data: Record<string, Record<string, number>>,
+) {
+  await sql.query(`DELETE FROM ${table} WHERE company_id = $1`, [cid]);
+  const tuples: string[] = [];
+  const params: (string | number)[] = [];
+  let i = 1;
+  for (const [pc, whs] of Object.entries(data)) {
+    for (const [wc, qty] of Object.entries(whs)) {
+      tuples.push(`($${i++}, $${i++}, $${i++}, $${i++})`);
+      params.push(cid, pc, wc, qty);
+    }
+  }
+  if (tuples.length === 0) return;
+  await sql.query(
+    `INSERT INTO ${table} (company_id, product_code, warehouse_code, qty) VALUES ${tuples.join(', ')}`,
+    params,
+  );
+}
+
+/** 今週（月〜金）の日別生産計画を週間生産数から均等配分で組む */
+function buildSampleDailyPlan(): DailyProductionPlan {
+  const now = new Date();
+  const day = now.getDay();              // 0=日
+  const diff = day === 0 ? -6 : 1 - day; // 当週の月曜
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diff);
+  const iso = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const dates = [0, 1, 2, 3, 4].map((n) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + n);
+    return iso(d);
+  });
+  const daily: DailyProductionPlan = {};
+  for (const [code, qty] of Object.entries(SAMPLE_PRODUCTION_PLAN)) {
+    const per = Math.round(qty / dates.length);
+    daily[code] = {};
+    for (const dt of dates) daily[code][dt] = per;
+  }
+  return daily;
+}
+
+/**
+ * ログイン中テナントにサンプルデータ一式を投入する。
+ * 既に製品が存在する場合は何もしない（誤操作によるデータ消失を防ぐ）。
+ * @returns seeded=false なら既存データありでスキップ
+ */
+export async function seedSampleDataForCompany(): Promise<{ seeded: boolean }> {
+  const cid = await getCompanyId();
+
+  // 既存データがある場合はスキップ（上書き防止）
+  const existing = await sql`SELECT 1 FROM products WHERE company_id = ${cid} LIMIT 1`;
+  if (existing.length > 0) return { seeded: false };
+
+  // トラック・パレットの既定を保証
+  await seedDefaultsForCompany(cid);
+
+  // 工場
+  for (const f of SAMPLE_FACTORIES) {
+    await sql`
+      INSERT INTO factories (company_id, code, name)
+      VALUES (${cid}, ${f.code}, ${f.name})
+      ON CONFLICT (company_id, code) DO NOTHING
+    `;
+  }
+  // 製品
+  for (const p of SAMPLE_PRODUCTS) await upsertProduct(p);
+  // 倉庫
+  for (const w of SAMPLE_WAREHOUSES) await upsertWarehouse(w);
+  // 稼働日
+  for (const [fc, days] of Object.entries(SAMPLE_OPERATING_DAYS)) await upsertOperatingDays(fc, days);
+  // 週間生産数
+  for (const [code, qty] of Object.entries(SAMPLE_PRODUCTION_PLAN)) await upsertProductionQty(code, qty);
+  // 日別生産（今週）
+  await replaceAllDailyProductionPlan(buildSampleDailyPlan());
+  // 基準在庫・現在庫・予定出荷（バルク）
+  await bulkInsertWhQty(cid, 'baseline_stock', SAMPLE_BASELINE_STOCK);
+  await bulkInsertWhQty(cid, 'location_stock', SAMPLE_LOCATION_STOCK);
+  await bulkInsertWhQty(cid, 'planned_sales', SAMPLE_PLANNED_SALES);
+  // 出荷スケジュール（各倉庫×各工場）
+  for (const w of SAMPLE_WAREHOUSES) {
+    for (const [fc, days] of Object.entries(SAMPLE_FACTORY_SCHEDULE)) {
+      await upsertShippingSchedule(fc, w.code, days);
+    }
+  }
+
+  return { seeded: true };
 }

@@ -43,6 +43,7 @@ interface AppState {
 
   // ─── アクション ───────────────────────────────────────────
   loadFromDB: () => Promise<void>;
+  loadSampleData: () => Promise<boolean>;
 
   addFactory: (f: Factory) => void;
   updateFactory: (f: Factory) => void;
@@ -183,6 +184,14 @@ export const useAppStore = create<AppState>()((set, get) => ({
       // エラー時はデフォルト値で動作継続
       set({ isLoaded: true });
     }
+  },
+
+  // ─── サンプルデータ投入（オンボーディング）───────────────────
+  // 既存データが無い場合のみ投入。投入後に再ロード。戻り値=実際に投入したか
+  loadSampleData: async () => {
+    const { seeded } = await db.seedSampleDataForCompany();
+    if (seeded) await get().loadFromDB();
+    return seeded;
   },
 
   // ─── 稼働日マスター ────────────────────────────────────────

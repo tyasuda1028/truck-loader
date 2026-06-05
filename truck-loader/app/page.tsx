@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { calcWeeklyPlans } from '@/lib/calculations';
+import { OnboardingChecklist } from '@/components/OnboardingChecklist';
 import type { DayWarehousePlan } from '@/lib/types';
 import clsx from 'clsx';
 
@@ -100,32 +101,8 @@ export default function DashboardPage() {
         <span style={{ fontSize: 12, fontWeight: 400, color: '#9ca3af' }}>今週の出荷計画サマリー</span>
       </div>
 
-      {/* ── ワークフロー導線（このアプリの流れ） ── */}
-      <div className="mb-5 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <p className="mb-2 text-[11px] font-semibold text-slate-400">
-          在庫基準と増減から「どの拠点へ・どのトラックで・どう積むか」をAIが提案します
-        </p>
-        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          {[
-            { n: '①', label: 'マスタ設定', href: '/settings', desc: '製品・拠点・トラック' },
-            { n: '②', label: '基準在庫・在庫', href: '/production', desc: '目標在庫と増減' },
-            { n: '③', label: '生産数入力', href: '/production', desc: '週間生産数' },
-            { n: '④', label: 'AI提案・積載計画', href: '/loading-plan', desc: 'トラックと積み方' },
-          ].map((s, i, arr) => (
-            <span key={s.n} className="flex items-center gap-1.5">
-              <Link
-                href={s.href}
-                className="group flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 hover:border-indigo-300 hover:bg-indigo-50"
-              >
-                <span className="font-bold text-indigo-600">{s.n}</span>
-                <span className="font-semibold text-slate-700 group-hover:text-indigo-700">{s.label}</span>
-                <span className="hidden text-[10px] text-slate-400 sm:inline">{s.desc}</span>
-              </Link>
-              {i < arr.length - 1 && <span className="text-slate-300">→</span>}
-            </span>
-          ))}
-        </div>
-      </div>
+      {/* ── オンボーディング（サンプルで始める／セットアップ進捗） ── */}
+      <OnboardingChecklist />
 
       {/* ── スケジュール未設定の警告 ── */}
       {totalTrucks === 0 && totalProductQty > 0 && (
