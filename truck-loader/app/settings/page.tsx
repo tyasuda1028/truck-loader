@@ -6,6 +6,7 @@ import type { Factory, Product, Warehouse, PalletType } from '@/lib/types';
 import { parseProductsCSV, generateProductsTemplate, downloadCSV } from '@/lib/csv';
 import { buildEquipmentColorMap, buildProductColors, PRODUCT_PALETTE } from '@/lib/productColors';
 import * as db from '@/lib/db';
+import { AiKeySettings } from '@/components/AiKeySettings';
 import clsx from 'clsx';
 
 type Tab = 'products' | 'warehouses' | 'pallets' | 'trucks' | 'factories' | 'operating' | 'stacking';
@@ -240,6 +241,11 @@ export default function SettingsPage() {
         >
           デフォルトにリセット
         </button>
+      </div>
+
+      {/* AI提案（Geminiキー）設定 */}
+      <div className="mb-6">
+        <AiKeySettings />
       </div>
 
       {/* タブ */}
