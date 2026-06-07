@@ -5,8 +5,8 @@ import { SupabaseProvider } from '@/components/SupabaseProvider';
 import { SessionProvider } from '@/components/SessionProvider';
 
 export const metadata: Metadata = {
-  title: '積載計画管理システム',
-  description: '配送会社・製造業向けトラック積載計画管理クラウドシステム',
+  title: '積載計画ナビ',
+  description: '中小製造業向け 積載計画ナビ — 在庫基準から最適なトラックと積み方をAIが提案',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
