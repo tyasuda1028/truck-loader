@@ -134,6 +134,10 @@ export function OnboardingChecklist() {
           </li>
         ))}
       </ol>
+      <p className="mt-2 text-[11px] text-slate-400">
+        💡 AI提案を使うには Gemini キーが必要です（無料・お試し可）。
+        <Link href="/settings" className="ml-1 font-semibold text-indigo-600 hover:underline">設定で登録 →</Link>
+      </p>
       {error && <p className="mt-2 text-xs text-rose-600">{error}</p>}
     </div>
   );

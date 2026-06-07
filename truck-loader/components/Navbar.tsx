@@ -104,10 +104,10 @@ export function Navbar() {
           </div>
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', lineHeight: 1.2 }}>
-              積載計画管理
+              積載計画ナビ
             </div>
             <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.2 }}>
-              Truck Loader
+              Loading Plan Navi
             </div>
           </div>
         </div>

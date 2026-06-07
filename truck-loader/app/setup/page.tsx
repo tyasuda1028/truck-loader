@@ -4,10 +4,11 @@ import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
 import { useAppStore } from '@/lib/store';
+import { AiKeySettings } from '@/components/AiKeySettings';
 
 const WEEK = ['月', '火', '水', '木', '金', '土', '日'];
 const COLORS = ['#2ECC71', '#4A90D9', '#E67E22', '#8B5A2B', '#E74C3C', '#16A085', '#9B59B6', '#F1C40F', '#1ABC9C', '#E84393'];
-const STEPS = ['開始方法', '工場', '拠点', '製品', '基準在庫数', '週間生産数', '出荷スケジュール', '完了'];
+const STEPS = ['開始方法', '工場', '拠点', '製品', '基準在庫数', '週間生産数', '出荷スケジュール', 'AIキー', '完了'];
 
 function hasWhQty(obj: Record<string, Record<string, number>>): boolean {
   return Object.values(obj).some((m) => Object.values(m).some((v) => v > 0));
@@ -267,8 +268,18 @@ export default function SetupWizard() {
           </StepShell>
         )}
 
-        {/* ───────── Step 7: 完了 ───────── */}
+        {/* ───────── Step 7: AIキー（任意）───────── */}
         {step === 7 && (
+          <StepShell
+            title="AI提案のキー（任意）"
+            hint="AI提案は Google Gemini を使います。自社のAPIキーを登録すると無制限で利用できます（無料キーは aistudio.google.com で取得・クレカ不要）。未登録でもお試し利用が可能で、後から設定画面でも変更できます。"
+          >
+            <AiKeySettings />
+          </StepShell>
+        )}
+
+        {/* ───────── Step 8: 完了 ───────── */}
+        {step === 8 && (
           <div>
             <h2 className="text-base font-bold text-slate-800">設定状況</h2>
             <ul className="mt-3 space-y-1.5 text-sm">
@@ -301,10 +312,10 @@ export default function SetupWizard() {
           <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4">
             <button type="button" onClick={() => go(step - 1)} className="rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-500 hover:bg-slate-100">← 戻る</button>
             <div className="flex items-center gap-2">
-              {step >= 1 && step <= 6 && !doneMap[step] && (
+              {step >= 1 && step <= 7 && !doneMap[step] && (
                 <button type="button" onClick={() => go(step + 1)} className="rounded-lg px-3 py-1.5 text-sm text-slate-400 hover:text-slate-600">あとで</button>
               )}
-              {step <= 6 && (
+              {step <= 7 && (
                 <button type="button" onClick={() => go(step + 1)} className="rounded-lg bg-slate-800 px-4 py-1.5 text-sm font-semibold text-white hover:bg-slate-900">次へ →</button>
               )}
             </div>

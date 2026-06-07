@@ -23,6 +23,8 @@ import {
   SAMPLE_BASELINE_STOCK, SAMPLE_LOCATION_STOCK, SAMPLE_PLANNED_SALES,
   SAMPLE_OPERATING_DAYS, SAMPLE_FACTORY_SCHEDULE,
 } from './sampleData';
+import { encryptSecret, isEncryptionConfigured } from './crypto';
+import { ensureAiConfigTable, currentPeriod, TRIAL_LIMIT } from './aiKey';
 
 // ─── Auth helper ─────────────────────────────────────────────────────────────
 
@@ -853,4 +855,73 @@ export async function seedSampleDataForCompany(): Promise<{ seeded: boolean }> {
   }
 
   return { seeded: true };
+}
+
+// ─── AIキー設定（テナントBYOK ＋ お試し）──────────────────────────────────
+// ⚠️ 実キー（復号値）はここから返さない。設定UI用の安全なステータスのみ返す。
+
+interface CompanyAiStatus {
+  hasTenantKey: boolean;       // 自社キーを登録済みか
+  keyLast4: string | null;     // 伏せ字表示用（末尾4文字）
+  trialUsed: number;           // 当月のお試し利用回数
+  trialLimit: number;          // お試し上限
+  ownerKeyAvailable: boolean;  // オーナーのお試しキーが利用可能か
+  encryptionConfigured: boolean; // サーバー暗号化シークレットが設定済みか
+}
+
+/** 設定画面用のAIキー状態を返す（実キーは返さない） */
+export async function getCompanyAiStatus(): Promise<CompanyAiStatus> {
+  const cid = await getCompanyId();
+  await ensureAiConfigTable();
+  const rows = await sql`
+    SELECT gemini_key_enc, gemini_key_last4, trial_period, trial_count
+    FROM company_ai_config WHERE company_id = ${cid} LIMIT 1
+  `;
+  const row = rows[0];
+  const trialUsed = row?.trial_period === currentPeriod() ? Number(row.trial_count) : 0;
+  return {
+    hasTenantKey: !!row?.gemini_key_enc,
+    keyLast4: (row?.gemini_key_last4 as string) ?? null,
+    trialUsed,
+    trialLimit: TRIAL_LIMIT,
+    ownerKeyAvailable: !!process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+    encryptionConfigured: isEncryptionConfigured(),
+  };
+}
+
+/** テナント自身のGeminiキーを暗号化して保存する */
+export async function setCompanyGeminiKey(plainKey: string): Promise<{ ok: boolean; message?: string }> {
+  const cid = await getCompanyId();
+  const key = (plainKey ?? '').trim();
+  if (!key) return { ok: false, message: 'キーを入力してください。' };
+  if (!isEncryptionConfigured()) {
+    return { ok: false, message: 'サーバーの暗号化設定（AI_KEY_ENCRYPTION_SECRET）が未設定です。管理者にご連絡ください。' };
+  }
+  if (!/^AIza[\w-]{20,}$/.test(key)) {
+    return { ok: false, message: 'Geminiキーの形式が正しくないようです（通常 "AIza…" で始まります）。' };
+  }
+  await ensureAiConfigTable();
+  const enc = encryptSecret(key);
+  const last4 = key.slice(-4);
+  await sql`
+    INSERT INTO company_ai_config (company_id, gemini_key_enc, gemini_key_last4)
+    VALUES (${cid}, ${enc}, ${last4})
+    ON CONFLICT (company_id) DO UPDATE SET
+      gemini_key_enc   = EXCLUDED.gemini_key_enc,
+      gemini_key_last4 = EXCLUDED.gemini_key_last4,
+      updated_at       = now()
+  `;
+  return { ok: true };
+}
+
+/** テナントのGeminiキーを削除（お試しに戻る） */
+export async function clearCompanyGeminiKey(): Promise<{ ok: boolean }> {
+  const cid = await getCompanyId();
+  await ensureAiConfigTable();
+  await sql`
+    UPDATE company_ai_config
+    SET gemini_key_enc = NULL, gemini_key_last4 = NULL, updated_at = now()
+    WHERE company_id = ${cid}
+  `;
+  return { ok: true };
 }

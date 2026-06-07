@@ -65,9 +65,14 @@ export function AIRecommendationPanel({
       </div>
 
       {error && (
-        <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+        <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
           {error}
-        </p>
+          {/キー|お試し|API/.test(error) && (
+            <a href="/settings" className="mt-1 block font-semibold text-rose-800 underline hover:text-rose-900">
+              → 設定でGeminiキーを登録する（無料）
+            </a>
+          )}
+        </div>
       )}
 
       {loading && (
