@@ -95,7 +95,7 @@ export default function RegisterPage() {
             </svg>
           </div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111827', marginBottom: 4 }}>
-            積載計画ナビ
+            スマコウバ積載
           </h1>
           <p style={{ fontSize: 14, color: '#6b7280' }}>新規アカウント登録（無料）</p>
         </div>

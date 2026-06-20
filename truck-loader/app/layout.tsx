@@ -8,8 +8,8 @@ import { OrientationController } from '@/components/OrientationController';
 import { EntitlementProvider } from '@/lib/entitlement';
 
 export const metadata: Metadata = {
-  title: '積載計画ナビ',
-  description: '中小製造業向け 積載計画ナビ — 在庫基準から最適なトラックと積み方を自動算出・可視化',
+  title: 'スマコウバ積載',
+  description: '中小製造業向け スマコウバ積載 — 在庫基準から最適なトラックと積み方を自動算出・可視化',
 };
 
 // viewport-fit=cover で env(safe-area-inset-*) を有効化（ノッチ/Dynamic Island対応）

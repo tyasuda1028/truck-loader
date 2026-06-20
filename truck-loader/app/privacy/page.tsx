@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'プライバシーポリシー｜積載計画ナビ',
-  description: '積載計画ナビのプライバシーポリシー（個人情報・データの取扱いについて）',
+  title: 'プライバシーポリシー｜スマコウバ積載',
+  description: 'スマコウバ積載のプライバシーポリシー（個人情報・データの取扱いについて）',
 };
 
 // App Store 申請の「プライバシーポリシーURL」用に未ログインで閲覧できる公開ページ。
@@ -11,11 +11,11 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-3xl px-5 py-10 text-gray-800 leading-relaxed">
       <h1 className="text-2xl font-bold text-gray-900">プライバシーポリシー</h1>
-      <p className="mt-1 text-sm text-gray-500">積載計画ナビ（Loading Plan Navi）</p>
+      <p className="mt-1 text-sm text-gray-500">スマコウバ積載（トラック配車・積み付け計算）</p>
       <p className="mt-1 text-sm text-gray-500">最終更新日：2026年6月20日</p>
 
       <p className="mt-6">
-        安田哲也（以下「当方」）は、モバイルアプリ「積載計画ナビ」（以下「本アプリ」）における
+        スマコウバ運営事務局（以下「当方」）は、モバイルアプリ「スマコウバ積載」（以下「本アプリ」）における
         利用者の個人情報・データの取扱いについて、以下のとおり定めます。
       </p>
 
@@ -94,12 +94,12 @@ export default function PrivacyPage() {
 
       <h2 className="mt-8 text-lg font-bold text-gray-900">8. お問い合わせ窓口</h2>
       <p className="mt-2">
-        運営者：安田哲也
+        運営者：スマコウバ運営事務局
         <br />
         メール：<a className="text-blue-600 underline" href="mailto:sophie83101028@gmail.com">sophie83101028@gmail.com</a>
       </p>
 
-      <p className="mt-10 text-xs text-gray-400">© 2026 安田哲也</p>
+      <p className="mt-10 text-xs text-gray-400">© 2026 スマコウバ運営事務局</p>
     </div>
   );
 }

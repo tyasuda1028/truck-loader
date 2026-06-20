@@ -45,7 +45,7 @@ export function UpgradeModal({
         <div className="px-5 pt-5 pb-4 bg-gradient-to-br from-blue-500 to-blue-700 text-white">
           <div className="flex items-start justify-between">
             <div>
-              <div className="text-xs font-semibold opacity-80">積載計画ナビ Pro</div>
+              <div className="text-xs font-semibold opacity-80">スマコウバ積載 Pro</div>
               <h2 className="text-lg font-bold mt-0.5">プロにアップグレード</h2>
             </div>
             <button onClick={onClose} className="text-white/80 hover:text-white text-xl leading-none" aria-label="閉じる">×</button>

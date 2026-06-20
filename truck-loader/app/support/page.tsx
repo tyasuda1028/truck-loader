@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'サポート｜積載計画ナビ',
-  description: '積載計画ナビのサポート・お問い合わせ・よくある質問',
+  title: 'サポート｜スマコウバ積載',
+  description: 'スマコウバ積載のサポート・お問い合わせ・よくある質問',
 };
 
 // App Store 申請の「サポートURL」用に未ログインで閲覧できる公開ページ。
@@ -11,17 +11,17 @@ export default function SupportPage() {
   return (
     <div className="mx-auto max-w-3xl px-5 py-10 text-gray-800 leading-relaxed">
       <h1 className="text-2xl font-bold text-gray-900">サポート</h1>
-      <p className="mt-1 text-sm text-gray-500">積載計画ナビ（Loading Plan Navi）</p>
+      <p className="mt-1 text-sm text-gray-500">スマコウバ積載（トラック配車・積み付け計算）</p>
 
       <p className="mt-6">
-        積載計画ナビは、中小の製造業・物流現場向けの「トラック積載計画」アプリです。
+        スマコウバ積載は、中小の製造業・物流現場向けの「トラック積載計画」アプリです。
         週間の生産数と拠点ごとの在庫から、どの拠点へ・どのトラックで・どう積むかを自動で算出し、
         荷台レイアウトや積込チェックリストとして可視化します。ご不明な点は下記の窓口までお問い合わせください。
       </p>
 
       <h2 className="mt-8 text-lg font-bold text-gray-900">お問い合わせ</h2>
       <p className="mt-2">
-        運営者：安田哲也
+        運営者：スマコウバ運営事務局
         <br />
         メール：<a className="text-blue-600 underline" href="mailto:sophie83101028@gmail.com">sophie83101028@gmail.com</a>
         <br />
@@ -51,7 +51,7 @@ export default function SupportPage() {
 
       <h3 className="mt-5 font-bold text-gray-900">サブスクリプションの解約方法は？</h3>
       <p className="mt-1">
-        iPhoneの「設定」→ 最上部のApple ID →「サブスクリプション」→「積載計画ナビ」から、
+        iPhoneの「設定」→ 最上部のApple ID →「サブスクリプション」→「スマコウバ積載」から、
         いつでも解約できます。解約後も、期間終了まではPro機能をご利用いただけます。
         購入の復元は、アプリ内「設定 → プラン → 購入を復元」から行えます。
       </p>
@@ -72,7 +72,7 @@ export default function SupportPage() {
         <li><a className="text-blue-600 underline" href="/privacy">プライバシーポリシー</a></li>
       </ul>
 
-      <p className="mt-10 text-xs text-gray-400">© 2026 安田哲也</p>
+      <p className="mt-10 text-xs text-gray-400">© 2026 スマコウバ運営事務局</p>
     </div>
   );
 }

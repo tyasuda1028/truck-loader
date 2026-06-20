@@ -14,7 +14,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  */
 const config: CapacitorConfig = {
   appId: 'com.tetsuyayasuda.truckloader', // 自社/個人のユニークなBundle ID。XcodeのBundle Identifierと一致させること
-  appName: 'トラック積載',
+  appName: 'スマコウバ積載',
   webDir: 'www',
 
   // ── フェーズ1の暫定: 既存WebアプリをWebViewで表示したい場合は以下を有効化 ──

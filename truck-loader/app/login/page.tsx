@@ -75,7 +75,7 @@ export default function LoginPage() {
             </svg>
           </div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111827', marginBottom: 4 }}>
-            積載計画ナビ
+            スマコウバ積載
           </h1>
           <p style={{ fontSize: 14, color: '#6b7280' }}>アカウントにログイン</p>
         </div>

@@ -93,7 +93,7 @@ export async function enablePush(): Promise<EnablePushResult> {
   }
   // デモ用ローカル通知
   try {
-    new Notification('積載計画ナビ', { body: '通知が有効になりました（Web版はローカル通知のデモ）' });
+    new Notification('スマコウバ積載', { body: '通知が有効になりました（Web版はローカル通知のデモ）' });
   } catch { /* SW未登録環境では出ないことがある */ }
   return { ok: true, status: 'granted', source: 'web' };
 }
