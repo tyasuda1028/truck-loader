@@ -1,6 +1,6 @@
 # サブスク（アプリ内課金）セットアップ手順
 
-積載計画ナビは **フリーミアム + サブスク**（月額/年額）で、課金は **RevenueCat** 経由の Apple アプリ内課金(IAP)です。
+スマコウバ積載は **フリーミアム + サブスク**（月額/年額）で、課金は **RevenueCat** 経由の Apple アプリ内課金(IAP)です。
 購入は iOS アプリ内で行い、サーバ経由で Web 版もロック解除されます。
 
 ## 無料 / Pro の境界（実装済み）
@@ -42,7 +42,7 @@
 5. **Offering**（current）を作成し、Monthly / Annual パッケージに上記productを割当
 6. **API keys** → Apple の **public key**（`appl_...`）を控える → 環境変数へ（下記）
 7. **Integrations → Webhooks** を追加:
-   - URL: `https://tyasuda1028-truck-loader.vercel.app/api/webhooks/revenuecat`
+   - URL: `https://smakouba.vercel.app/api/webhooks/revenuecat`
    - Authorization header: 任意の長い文字列（= 環境変数 `RC_WEBHOOK_AUTH` と一致させる）
 
 ### 3. 環境変数
@@ -54,7 +54,7 @@
 iOSビルド例:
 ```bash
 NEXT_PUBLIC_RC_IOS_API_KEY=appl_xxx \
-NEXT_PUBLIC_SYNC_API=https://tyasuda1028-truck-loader.vercel.app \
+NEXT_PUBLIC_SYNC_API=https://smakouba.vercel.app \
 npm run build:ios
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer npx cap sync ios
 ```
