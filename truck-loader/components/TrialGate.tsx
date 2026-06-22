@@ -135,8 +135,11 @@ function LockScreen({ ent, native }: { ent: Ent | null; native: boolean }) {
   );
 }
 
-/** ネイティブ初回のログイン画面（トークン認証）＋デモ導線 */
+/** ネイティブ初回のログイン/新規登録画面（トークン認証）＋デモ導線 */
 function NativeLoginGate({ onDone }: { onDone: () => void }) {
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [companyName, setCompanyName] = useState('');
+  const [userName, setUserName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -155,6 +158,28 @@ function NativeLoginGate({ onDone }: { onDone: () => void }) {
     }
   };
 
+  const register = async () => {
+    if (!companyName.trim() || !userName.trim() || !email.trim() || !password) { setError('全ての項目を入力してください'); return; }
+    if (password.length < 8) { setError('パスワードは8文字以上にしてください'); return; }
+    setBusy(true);
+    try {
+      const res = await fetch(`${syncApiBase()}/api/register`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyName: companyName.trim(), userName: userName.trim(), email: email.trim(), password }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setBusy(false); setError(d?.message ?? '登録に失敗しました'); return;
+      }
+      // 登録成功→そのままログイン（30日トライアル開始）
+      const lr = await cloudLogin(email.trim(), password);
+      if (lr.ok) { try { localStorage.setItem('truckloader.dataSource', 'local'); } catch { /* ignore */ } onDone(); }
+      else { setBusy(false); setError(lr.message ?? 'ログインに失敗しました'); }
+    } catch {
+      setBusy(false); setError('通信エラーが発生しました');
+    }
+  };
+
   const demo = () => {
     try {
       localStorage.setItem('truckloader.demoNative', '1');
@@ -164,22 +189,35 @@ function NativeLoginGate({ onDone }: { onDone: () => void }) {
     onDone();
   };
 
+  const inputCls = 'rounded-lg border border-gray-300 px-3 py-2.5 text-sm';
+
   return (
-    <div className="flex items-center justify-center min-h-screen px-5" style={{ background: '#f5f7fa' }}>
+    <div className="flex items-center justify-center min-h-screen px-5 py-8" style={{ background: '#f5f7fa' }}>
       <div className="w-full max-w-sm rounded-2xl bg-white p-7 shadow">
         <div className="text-center mb-6">
           <div style={{ width: 56, height: 56, borderRadius: 14, background: 'linear-gradient(135deg,#6366f1,#3b82f6 50%,#06b6d4)' }} className="mx-auto mb-3 flex items-center justify-center">
             <span style={{ color: '#fff', fontWeight: 900, fontSize: 34 }}>ス</span>
           </div>
           <h1 className="text-lg font-bold text-gray-900">スマコウバ積載</h1>
-          <p className="text-xs text-gray-500 mt-1">ログインして利用を開始</p>
+          <p className="text-xs text-gray-500 mt-1">
+            {mode === 'login' ? 'ログインして利用を開始' : '新規登録（30日間 無料トライアル）'}
+          </p>
         </div>
         <div className="flex flex-col gap-3">
-          <input className="rounded-lg border border-gray-300 px-3 py-2.5 text-sm" type="email" inputMode="email" placeholder="メールアドレス" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <input className="rounded-lg border border-gray-300 px-3 py-2.5 text-sm" type="password" placeholder="パスワード" value={password} onChange={(e) => setPassword(e.target.value)} />
+          {mode === 'register' && (
+            <>
+              <input className={inputCls} placeholder="会社名" value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
+              <input className={inputCls} placeholder="お名前" value={userName} onChange={(e) => setUserName(e.target.value)} />
+            </>
+          )}
+          <input className={inputCls} type="email" inputMode="email" placeholder="メールアドレス" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <input className={inputCls} type="password" placeholder={mode === 'register' ? 'パスワード（8文字以上）' : 'パスワード'} value={password} onChange={(e) => setPassword(e.target.value)} />
           {error && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">{error}</div>}
-          <button onClick={login} disabled={busy} className="rounded-lg bg-blue-600 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60">
-            {busy ? 'ログイン中…' : 'ログイン'}
+          <button onClick={mode === 'login' ? login : register} disabled={busy} className="rounded-lg bg-blue-600 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60">
+            {busy ? '処理中…' : mode === 'login' ? 'ログイン' : '無料で始める'}
+          </button>
+          <button onClick={() => { setError(''); setMode(mode === 'login' ? 'register' : 'login'); }} className="text-xs text-blue-600 hover:underline">
+            {mode === 'login' ? 'アカウントをお持ちでない方は新規登録（30日無料）' : 'すでにアカウントをお持ちの方はログイン'}
           </button>
         </div>
         <div className="border-t border-gray-100 mt-5 pt-4">
