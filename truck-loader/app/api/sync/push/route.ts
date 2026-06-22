@@ -8,10 +8,15 @@
 import { NextResponse } from 'next/server';
 import { getAuthContext } from '@/lib/server/auth';
 import { saveSnapshotData } from '@/lib/server/syncRepo';
+import { getCompanyEntitlement } from '@/lib/server/subscription';
 
 export async function POST(req: Request) {
   const auth = await getAuthContext(req);
   if (!auth?.companyId) return new NextResponse('Unauthorized', { status: 401 });
+
+  // トライアル/契約が有効でなければ同期(全置換)を拒否（サーバ側のトライアル強制）
+  const ent = await getCompanyEntitlement(auth.companyId);
+  if (!ent.active) return NextResponse.json({ error: 'subscription expired' }, { status: 403 });
 
   const body = await req.json().catch(() => null);
   if (!body || typeof body.updatedAt !== 'number' || typeof body.data !== 'object' || body.data === null) {

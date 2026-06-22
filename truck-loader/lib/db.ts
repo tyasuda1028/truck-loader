@@ -24,17 +24,26 @@ import {
   SAMPLE_OPERATING_DAYS, SAMPLE_FACTORY_SCHEDULE,
 } from './sampleData';
 import { getOverrideCompanyId } from './server/companyContext';
+import { assertActiveCompany } from './server/subscription';
 
 // ─── Auth helper ─────────────────────────────────────────────────────────────
 
-/** company_id を取得。override（Bearer同期コンテキスト）優先、無ければセッション。 */
+/**
+ * company_id を取得。override（Bearer同期コンテキスト）優先、無ければセッション。
+ * さらに active(契約 or トライアル期限内) をサーバ側で強制（期限切れは例外）。
+ * ＝ 全サーバアクションがトライアル終了後はデータ操作不可になる（クライアントUIロックの裏付け）。
+ */
 async function getCompanyId(): Promise<string> {
   const override = getOverrideCompanyId();
-  if (override) return override;
+  if (override) {
+    await assertActiveCompany(override);
+    return override;
+  }
   const session = await getServerSession(authOptions);
   if (!session?.user?.companyId) {
     throw new Error('認証が必要です。ログインしてください。');
   }
+  await assertActiveCompany(session.user.companyId);
   return session.user.companyId;
 }
 

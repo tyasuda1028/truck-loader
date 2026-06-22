@@ -24,6 +24,22 @@ export default function ContactPage() {
         </p>
       </div>
 
+      {/* LINEで相談 */}
+      <a
+        href="https://line.me/R/ti/p/%40100xjiup"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center justify-center gap-2 rounded-full bg-[#06C755] px-6 py-3.5 text-base font-bold text-white shadow-md transition hover:brightness-95"
+      >
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+          <path d="M12 2.2c-5.52 0-10 3.64-10 8.13 0 4.02 3.55 7.39 8.35 8.03.32.07.77.21.88.49.1.25.07.64.03.9l-.14.86c-.04.25-.2.99.87.54s5.76-3.39 7.86-5.81c1.45-1.59 2.15-3.2 2.15-5.01 0-4.49-4.48-8.13-10-8.13Z" />
+        </svg>
+        LINEで相談する（友だち追加）
+      </a>
+      <div className="my-5 flex items-center gap-3 text-xs text-gray-400">
+        <span className="h-px flex-1 bg-gray-200" /> または、フォームから <span className="h-px flex-1 bg-gray-200" />
+      </div>
+
       <ContactForm />
 
       <div className="mt-8 text-center text-xs text-gray-400 space-x-4">

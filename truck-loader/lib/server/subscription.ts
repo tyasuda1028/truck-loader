@@ -14,6 +14,16 @@ export interface Entitlement {
   trialDaysLeft: number | null;
 }
 
+/** active(契約 or トライアル期限内) でなければ例外。サーバ側でのトライアル強制に使う。 */
+export class TrialExpiredError extends Error {
+  code = 'TRIAL_EXPIRED';
+  constructor() { super('無料トライアルが終了しました。継続利用にはご契約が必要です。'); }
+}
+export async function assertActiveCompany(companyId: string): Promise<void> {
+  const ent = await getCompanyEntitlement(companyId);
+  if (!ent.active) throw new TrialExpiredError();
+}
+
 export async function getCompanyEntitlement(companyId: string): Promise<Entitlement> {
   const rows = await sql`SELECT is_pro, trial_ends_at FROM companies WHERE id = ${companyId}`;
   const r = rows[0];
