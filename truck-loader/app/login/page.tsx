@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { signIn } from '@/lib/authClient';
 import Link from 'next/link';
+import BrandLogo from '@/components/BrandLogo';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -69,20 +70,7 @@ export default function LoginPage() {
       >
         {/* ロゴ・タイトル */}
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 56,
-              height: 56,
-              borderRadius: 14,
-              background: 'linear-gradient(135deg,#6366f1 0%,#3b82f6 50%,#06b6d4 100%)',
-              marginBottom: 16,
-            }}
-          >
-            <span style={{ color: '#fff', fontWeight: 900, fontSize: 34, lineHeight: 1, letterSpacing: -1 }}>ス</span>
-          </div>
+          <BrandLogo size={56} rounded={14} style={{ marginBottom: 16 }} />
           <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111827', marginBottom: 4 }}>
             スマコウバ積載
           </h1>

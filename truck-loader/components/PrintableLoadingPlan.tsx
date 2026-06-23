@@ -12,6 +12,7 @@
  */
 import type { DayWarehousePlan, Warehouse, TruckType, Product, PalletType, TruckSlotItem } from '@/lib/types';
 import { calcStackingLayout } from '@/lib/calculations';
+import BrandLogo from './BrandLogo';
 
 interface Props {
   factoryName: string;
@@ -93,9 +94,7 @@ export function PrintableLoadingPlan({ factoryName, weekLabel, plans, warehouses
     <div style={{ width: 760, background: '#fff', color: '#0f172a', fontFamily: '-apple-system, "Hiragino Sans", sans-serif', padding: 16 }}>
       {/* ── 見出し ── */}
       <div style={{ borderBottom: '2px solid #1e293b', paddingBottom: 8, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ width: 34, height: 34, borderRadius: 8, background: 'linear-gradient(135deg,#6366f1 0%,#3b82f6 50%,#06b6d4 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <span style={{ color: '#fff', fontWeight: 900, fontSize: 22, lineHeight: 1 }}>ス</span>
-        </div>
+        <BrandLogo size={34} rounded={8} style={{ flexShrink: 0 }} />
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 18, fontWeight: 800 }}>積載計画書 — {factoryName}</div>
           <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>{weekLabel}</div>

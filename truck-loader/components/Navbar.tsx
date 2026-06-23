@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
 import { UserMenu } from './UserMenu';
 import { SyncStatus } from './SyncStatus';
+import BrandLogo from './BrandLogo';
 
 // 業務の流れ（①設定 → ②データ入力 → ③積載計画）に沿った並び
 const NAV_ITEMS = [
@@ -127,20 +128,7 @@ export function Navbar() {
               <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
             </svg>
           </button>
-          <div
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 9,
-              background: 'linear-gradient(135deg,#6366f1 0%,#3b82f6 50%,#06b6d4 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <span style={{ color: '#fff', fontWeight: 900, fontSize: 23, lineHeight: 1, letterSpacing: -1 }}>ス</span>
-          </div>
+          <BrandLogo size={36} rounded={9} style={{ flexShrink: 0 }} />
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', lineHeight: 1.2 }}>
               スマコウバ積載

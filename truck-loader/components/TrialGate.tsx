@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { getToken } from '@/lib/auth/token';
 import { cloudLogin, syncApiBase, authHeader } from '@/lib/auth/cloudAuth';
+import BrandLogo from './BrandLogo';
 
 type Phase = 'loading' | 'login' | 'locked' | 'ok';
 interface Ent { active: boolean; trialEndsAt: string | null; trialDaysLeft: number | null; isPro: boolean }
@@ -119,9 +120,7 @@ function LockScreen({ ent, native }: { ent: Ent | null; native: boolean }) {
   const contactHref = native ? 'mailto:sophie83101028@gmail.com?subject=スマコウバ積載 ご契約のお問い合わせ' : '/contact';
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center">
-      <div style={{ width: 56, height: 56, borderRadius: 14, background: 'linear-gradient(135deg,#6366f1,#3b82f6 50%,#06b6d4)' }} className="flex items-center justify-center mb-4">
-        <span style={{ color: '#fff', fontWeight: 900, fontSize: 32 }}>ス</span>
-      </div>
+      <BrandLogo size={56} rounded={14} className="mb-4" />
       <h1 className="text-xl font-bold text-gray-900">無料トライアルが終了しました</h1>
       <p className="mt-3 text-sm text-gray-600 max-w-md leading-relaxed">
         引き続きスマコウバ積載をご利用いただくには、法人プランのご契約が必要です。
@@ -195,9 +194,7 @@ function NativeLoginGate({ onDone }: { onDone: () => void }) {
     <div className="flex items-center justify-center min-h-screen px-5 py-8" style={{ background: '#f5f7fa' }}>
       <div className="w-full max-w-sm rounded-2xl bg-white p-7 shadow">
         <div className="text-center mb-6">
-          <div style={{ width: 56, height: 56, borderRadius: 14, background: 'linear-gradient(135deg,#6366f1,#3b82f6 50%,#06b6d4)' }} className="mx-auto mb-3 flex items-center justify-center">
-            <span style={{ color: '#fff', fontWeight: 900, fontSize: 34 }}>ス</span>
-          </div>
+          <BrandLogo size={56} rounded={14} className="mx-auto mb-3" />
           <h1 className="text-lg font-bold text-gray-900">スマコウバ積載</h1>
           <p className="text-xs text-gray-500 mt-1">
             {mode === 'login' ? 'ログインして利用を開始' : '新規登録（30日間 無料トライアル）'}

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { ContactForm } from '@/components/ContactForm';
+import BrandLogo from '@/components/BrandLogo';
 
 export const metadata: Metadata = {
   title: 'お問い合わせ｜スマコウバ積載',
@@ -12,12 +13,7 @@ export default function ContactPage() {
     <div className="mx-auto max-w-xl px-5 py-10">
       {/* ロゴ・見出し */}
       <div className="text-center mb-8">
-        <div
-          className="mx-auto mb-3 flex items-center justify-center"
-          style={{ width: 56, height: 56, borderRadius: 14, background: 'linear-gradient(135deg,#6366f1 0%,#3b82f6 50%,#06b6d4 100%)' }}
-        >
-          <span style={{ color: '#fff', fontWeight: 900, fontSize: 34, lineHeight: 1, letterSpacing: -1 }}>ス</span>
-        </div>
+        <BrandLogo size={56} rounded={14} className="mx-auto mb-3" />
         <h1 className="text-2xl font-bold text-gray-900">お問い合わせ</h1>
         <p className="mt-2 text-sm text-gray-500">
           導入のご相談・お見積り・ご質問など、お気軽にお問い合わせください。
@@ -26,7 +22,7 @@ export default function ContactPage() {
 
       {/* LINEで相談 */}
       <a
-        href="https://line.me/R/ti/p/%40100xjiup"
+        href="https://line.me/R/ti/p/%40926yxdlw"
         target="_blank"
         rel="noopener noreferrer"
         className="flex items-center justify-center gap-2 rounded-full bg-[#06C755] px-6 py-3.5 text-base font-bold text-white shadow-md transition hover:brightness-95"
