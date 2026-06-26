@@ -43,3 +43,4 @@ DerivedData/
 # capacitor 静的ビルド出力（npm run build:ios で再生成）
 /www/
 /.capacitor-build-tmp/
+.env*

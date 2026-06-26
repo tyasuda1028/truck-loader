@@ -20,6 +20,6 @@ export default withAuth({
 
 export const config = {
   matcher: [
-    '/((?!login|register|privacy|contact|terms|pricing|api/auth|api/register|api/sync|api/account|api/push|api/contact|api/subscription|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|ico)).*)',
+    '/((?!login|register|privacy|contact|terms|pricing|api/auth|api/register|api/sync|api/account|api/push|api/contact|api/subscription|api/checkout|api/customer-portal|api/stripe-webhook|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|ico)).*)',
   ],
 };

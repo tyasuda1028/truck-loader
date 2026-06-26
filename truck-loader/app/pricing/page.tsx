@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import NativeRedirect from '@/components/NativeRedirect';
+import SubscribeButton from '@/components/SubscribeButton';
 
 export const metadata: Metadata = {
   title: '料金｜スマコウバ積載',
@@ -75,6 +76,15 @@ export default function PricingPage() {
                 <li key={f} className="flex gap-2"><span className="text-blue-600">✓</span><span>{f}</span></li>
               ))}
             </ul>
+            {t.name === 'スタンダード' ? (
+              <div className="mt-4 flex flex-col gap-2">
+                <SubscribeButton plan="standard_monthly" label="月額でカード申し込み" className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60" />
+                <SubscribeButton plan="standard_yearly" label="年額（2ヶ月分お得）" className="rounded-lg border border-blue-600 px-4 py-2.5 text-sm font-bold text-blue-600 hover:bg-blue-50 disabled:opacity-60" />
+                <span className="text-[11px] text-gray-400 text-center">クレジットカード決済・いつでも解約可</span>
+              </div>
+            ) : (
+              <a href="mailto:sophie83101028@gmail.com?subject=スマコウバ積載 料金のお問い合わせ" className="mt-4 inline-block text-center rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50">お問い合わせ</a>
+            )}
           </div>
         ))}
       </div>

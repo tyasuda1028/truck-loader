@@ -16,6 +16,7 @@ import { Capacitor } from '@capacitor/core';
 import { getToken } from '@/lib/auth/token';
 import { cloudLogin, syncApiBase, authHeader } from '@/lib/auth/cloudAuth';
 import BrandLogo from './BrandLogo';
+import SubscribeButton from './SubscribeButton';
 
 type Phase = 'loading' | 'login' | 'locked' | 'ok';
 interface Ent { active: boolean; trialEndsAt: string | null; trialDaysLeft: number | null; isPro: boolean }
@@ -143,13 +144,15 @@ function LockScreen({ ent, native }: { ent: Ent | null; native: boolean }) {
       <BrandLogo size={56} rounded={14} className="mb-4" />
       <h1 className="text-xl font-bold text-gray-900">無料トライアルが終了しました</h1>
       <p className="mt-3 text-sm text-gray-600 max-w-md leading-relaxed">
-        引き続きスマコウバ積載をご利用いただくには、法人プランのご契約が必要です。
-        ご利用人数・拠点数をお知らせいただければ、最適なプランをご案内します。
+        引き続きスマコウバ積載をご利用いただくには、ご契約が必要です。
+        Standard プランはカード決済ですぐにご利用を再開できます。
       </p>
-      <a href="/contact" className="mt-6 rounded-lg bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700">
-        ご契約・お見積りのお問い合わせ
-      </a>
-      <p className="mt-3 text-xs text-gray-400">スマコウバ運営事務局：sophie83101028@gmail.com</p>
+      <div className="mt-6 flex flex-col gap-2 w-full max-w-xs">
+        <SubscribeButton plan="standard_monthly" label="Standard 月額で申し込む（カード）" className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60" />
+        <SubscribeButton plan="standard_yearly" label="Standard 年額（2ヶ月分お得）" className="rounded-lg border border-blue-600 px-5 py-3 text-sm font-bold text-blue-600 hover:bg-blue-50 disabled:opacity-60" />
+      </div>
+      <a href="/pricing" className="mt-4 text-sm text-blue-600 underline">料金プランを見る</a>
+      <a href="/contact" className="mt-2 text-xs text-gray-500 underline">上位プラン・お見積りのお問い合わせ</a>
     </div>
   );
 }
