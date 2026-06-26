@@ -57,6 +57,7 @@ export async function POST(req: Request) {
         const o = event.data.object as Stripe.Subscription;
         await applySubscriptionToCompany({
           customerId: typeof o.customer === 'string' ? o.customer : o.customer.id,
+          companyId: o.metadata?.companyId ?? null,
           isPro: false,
           expiresAt: o.current_period_end ?? null,
         });
