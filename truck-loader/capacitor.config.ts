@@ -17,6 +17,15 @@ const config: CapacitorConfig = {
   appName: 'スマコウバ積載',
   webDir: 'www',
 
+  plugins: {
+    // 負荷と同様、起動時にブランドのスプラッシュを一定時間保持してなめらかに表示
+    SplashScreen: {
+      launchShowDuration: 1200,
+      backgroundColor: '#4f78ee',
+      showSpinner: false,
+    },
+  },
+
   // ── フェーズ1の暫定: 既存WebアプリをWebViewで表示したい場合は以下を有効化 ──
   // ※ この方式はオフライン不可。フェーズ2で静的同梱に切り替えると本来のオフラインになる。
   // server: {

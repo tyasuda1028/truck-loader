@@ -23,6 +23,7 @@
     "@capacitor/push-notifications": "^6.0.5",
     "@capacitor/screen-orientation": "^6.0.4",
     "@capacitor/share": "^6.0.4",
+    "@capacitor/splash-screen": "^6.0.4",
     "@neondatabase/serverless": "^1.1.0",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^3.0.3",

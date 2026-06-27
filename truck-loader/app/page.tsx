@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { calcWeeklyPlans } from '@/lib/calculations';
+import { useCalcSettings } from '@/lib/useCalcSettings';
 import { OnboardingChecklist } from '@/components/OnboardingChecklist';
 import { WeeklyFlowGuide } from '@/components/WeeklyFlowGuide';
 import type { DayWarehousePlan } from '@/lib/types';
@@ -19,15 +20,16 @@ export default function DashboardPage() {
   const [activeFactoryTab, setActiveFactoryTab] = useState<string>('');
 
   // 出荷スケジュールを反映した週間計画（手動上書き・パレット型も考慮）
+  const calcSettings = useCalcSettings();
   const weeklyPlans = useMemo(
     () => calcWeeklyPlans(
       warehouses, products, truckTypes, factories,
       productionPlan, baselineStock, locationStock,
-      weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual, palletTypes,
+      weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual, palletTypes, calcSettings,
     ),
     [warehouses, products, truckTypes, factories, productionPlan, baselineStock,
      locationStock, weeklyShippingSchedule, inTransitStock, plannedSales,
-     sendQtyManual, palletTypes],
+     sendQtyManual, palletTypes, calcSettings],
   );
 
   const DAY_NAMES = ['月', '火', '水', '木', '金', '土', '日'];

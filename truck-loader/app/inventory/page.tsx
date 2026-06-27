@@ -4,17 +4,19 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { calcAllPlans, calcSendQty } from '@/lib/calculations';
+import { useCalcSettings } from '@/lib/useCalcSettings';
 import { buildEquipmentColorMap } from '@/lib/productColors';
 import { HelpTip } from '@/components/HelpTip';
 import clsx from 'clsx';
 
 export default function InventoryPage() {
   const {
-    factories, products, warehouses, truckTypes,
+    factories, products, warehouses, truckTypes, palletTypes,
     productionPlan, baselineStock,
-    locationStock, inTransitStock, plannedSales,
+    locationStock, inTransitStock, plannedSales, sendQtyManual,
     setLocationStock, confirmShipment,
   } = useAppStore();
+  const calcSettings = useCalcSettings();
 
   const [confirmed, setConfirmed] = useState(false);
 
@@ -24,13 +26,13 @@ export default function InventoryPage() {
   const [filterText, setFilterText] = useState('');
 
   const sendQty = useMemo(
-    () => calcSendQty(products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales),
-    [products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales],
+    () => calcSendQty(products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales, calcSettings),
+    [products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales, calcSettings],
   );
 
   const plans = useMemo(
-    () => calcAllPlans(warehouses, products, truckTypes, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales),
-    [warehouses, products, truckTypes, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales],
+    () => calcAllPlans(warehouses, products, truckTypes, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales, sendQtyManual, palletTypes, calcSettings),
+    [warehouses, products, truckTypes, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales, sendQtyManual, palletTypes, calcSettings],
   );
 
   const activeWarehouses = warehouses.filter((wh) =>

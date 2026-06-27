@@ -643,6 +643,9 @@ export default function LoadingPlanInner() {
                       { label: '総パレット', val: `${selectedMerged.totalPallets}枚` },
                       { label: '出荷個数', val: `${selectedMerged.totalQty.toLocaleString()}個` },
                       { label: '積載率',  val: `${fr}%` },
+                      ...(selectedMerged.plans.reduce((s, p) => s + (p.carryover ?? 0), 0) > 0
+                        ? [{ label: '繰越(翌週)', val: `${selectedMerged.plans.reduce((s, p) => s + (p.carryover ?? 0), 0).toLocaleString()}個` }]
+                        : []),
                     ].map(({ label, val }) => (
                       <div key={label} className="text-center px-3">
                         <div className="font-bold text-brand-600 text-base">{val}</div>
@@ -703,6 +706,14 @@ export default function LoadingPlanInner() {
                       <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-3 md:p-5 w-full md:w-auto">
                         <div className="text-xs font-semibold text-slate-500 mb-3">
                           積載レイアウト ─ {clampedTruck + 1}号車（{load.maxPallets > activeTruckType.maxPallets ? '2段込み' : '床面'} {load.totalPallets}/{load.maxPallets}パレット）
+                          {load.maxWeightKg ? (
+                            <span className={clsx('ml-2', load.overweight ? 'text-red-600 font-bold' : 'text-slate-400')}>
+                              ・{Math.round(load.totalWeightKg ?? 0).toLocaleString()}/{load.maxWeightKg.toLocaleString()}kg
+                              {load.overweight ? ' ⚠️重量超過' : ''}
+                            </span>
+                          ) : (load.totalWeightKg ? (
+                            <span className="ml-2 text-slate-400">・{Math.round(load.totalWeightKg).toLocaleString()}kg</span>
+                          ) : null)}
                         </div>
                         <div className="overflow-x-auto">
                           <TruckDiagram load={load} truckType={activeTruckType} products={products} palletTypes={palletTypes} productColors={productColors} productNames={productNames} />

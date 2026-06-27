@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { calcWeeklyPlans } from '@/lib/calculations';
+import { useCalcSettings } from '@/lib/useCalcSettings';
 import type { DayWarehousePlan } from '@/lib/types';
 
 const DAY_LABELS = ['月', '火', '水', '木', '金', '土', '日'];
@@ -40,10 +41,11 @@ function formatWeekLabel(monday: Date): string {
 
 export default function SchedulePage() {
   const {
-    factories, products, warehouses, truckTypes,
+    factories, products, warehouses, truckTypes, palletTypes,
     productionPlan, baselineStock, locationStock,
     weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual, setShippingDay,
   } = useAppStore();
+  const calcSettings = useCalcSettings();
 
   const [selectedFactory, setSelectedFactory] = useState<string>(factories[0]?.code ?? '');
   const [planMonday, setPlanMonday] = useState<Date>(() => getMondayOf(new Date()));
@@ -71,9 +73,9 @@ export default function SchedulePage() {
       calcWeeklyPlans(
         warehouses, products, truckTypes, factories,
         productionPlan, baselineStock, locationStock,
-        weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual,
+        weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual, palletTypes, calcSettings,
       ),
-    [warehouses, products, truckTypes, factories, productionPlan, baselineStock, locationStock, weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual],
+    [warehouses, products, truckTypes, factories, productionPlan, baselineStock, locationStock, weeklyShippingSchedule, inTransitStock, plannedSales, sendQtyManual, palletTypes, calcSettings],
   );
 
   const factoryPlans = weeklyPlans[selectedFactory] ?? [];

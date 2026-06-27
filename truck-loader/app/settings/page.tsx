@@ -2,7 +2,8 @@
 
 import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
-import type { Factory, Product, Warehouse, PalletType } from '@/lib/types';
+import type { Factory, Product, Warehouse, PalletType, CalcSettings } from '@/lib/types';
+import { getCalcSettings, saveCalcSettings } from '@/lib/appSettings';
 import { parseProductsCSV, generateProductsTemplate, downloadCSV } from '@/lib/csv';
 import { buildEquipmentColorMap, buildProductColors, PRODUCT_PALETTE } from '@/lib/productColors';
 import * as db from '@/lib/db';
@@ -12,7 +13,7 @@ import { BiometricLockSetting } from '@/components/BiometricLockSetting';
 import { toast } from '@/components/Toast';
 import clsx from 'clsx';
 
-type Tab = 'products' | 'warehouses' | 'pallets' | 'trucks' | 'factories' | 'operating' | 'stacking';
+type Tab = 'products' | 'warehouses' | 'pallets' | 'trucks' | 'factories' | 'operating' | 'stacking' | 'calc';
 
 export default function SettingsPage() {
   const {
@@ -278,6 +279,7 @@ export default function SettingsPage() {
           { key: 'trucks',     label: '🚚 トラックマスタ' },
           { key: 'factories',  label: '🏭 工場マスタ' },
           { key: 'operating',  label: '📅 稼働日マスタ' },
+          { key: 'calc',       label: '⚖️ 計算設定' },
         ] as { key: Tab; label: string }[]).map(({ key, label }) => (
           <button
             key={key}
@@ -293,6 +295,9 @@ export default function SettingsPage() {
           </button>
         ))}
       </div>
+
+      {/* ── 計算設定 ── */}
+      {tab === 'calc' && <CalcSettingsPanel />}
 
       {/* ── 工場マスタ ── */}
       {tab === 'factories' && (
@@ -1444,6 +1449,7 @@ function TruckModal({
   const [rows,       setRows]       = useState(String(truck.rows));
   const [widthMM,    setWidthMM]    = useState(String(truck.widthMM));
   const [depthMM,    setDepthMM]    = useState(String(truck.depthMM));
+  const [maxWeightKg, setMaxWeightKg] = useState(String(truck.maxWeightKg ?? 0));
   const [error,      setError]      = useState<string | null>(null);
 
   // プレビュー用に現在値を数値化（無効なら元の値）
@@ -1453,6 +1459,7 @@ function TruckModal({
   const pRows       = parseInt(rows, 10)        || 0;
   const pWidthMM    = parseInt(widthMM, 10)     || 0;
   const pDepthMM    = parseInt(depthMM, 10)     || 0;
+  const pMaxWeightKg = parseInt(maxWeightKg, 10) || 0;
 
   const handleSave = () => {
     if (!code.trim() || !name.trim()) { setError('コードと名称は必須です'); return; }
@@ -1468,6 +1475,7 @@ function TruckModal({
       rows:       pRows,
       widthMM:    pWidthMM,
       depthMM:    pDepthMM,
+      maxWeightKg: pMaxWeightKg > 0 ? pMaxWeightKg : undefined,
     });
   };
 
@@ -1512,6 +1520,15 @@ function TruckModal({
               />
             </Field>
           </div>
+          <Field label="最大積載重量（kg）" hint="0=重量制約なし。設定すると容量＋重量で台数を判定し超過を警告">
+            <input
+              type="number" min={0} step={100}
+              className={INPUT_CLASS}
+              value={maxWeightKg}
+              onChange={(e) => setMaxWeightKg(e.target.value)}
+              placeholder="0"
+            />
+          </Field>
           <div className="border-t border-slate-100 pt-3">
             <p className="text-[10px] text-slate-400 mb-2">荷台グリッド（積載レイアウト表示用）</p>
             <div className="grid grid-cols-2 gap-3">
@@ -1919,6 +1936,26 @@ function WarehouseModal({
               ))}
             </select>
           </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="配分優先度" hint="小さいほど優先（配分が「優先度順」のとき先に満たす）。空欄は最後尾">
+              <input
+                type="number" min={1} step={1}
+                className={INPUT_CLASS}
+                value={warehouse.priority ?? ''}
+                onChange={(e) => onChange({ ...warehouse, priority: e.target.value === '' ? undefined : (parseInt(e.target.value, 10) || undefined) })}
+                placeholder="例: 1"
+              />
+            </Field>
+            <Field label="リードタイム（日）" hint="基準在庫が「自動」のとき使用（到着までの日数）">
+              <input
+                type="number" min={0} step={1}
+                className={INPUT_CLASS}
+                value={warehouse.leadTimeDays ?? ''}
+                onChange={(e) => onChange({ ...warehouse, leadTimeDays: e.target.value === '' ? undefined : (parseInt(e.target.value, 10) || 0) })}
+                placeholder="例: 2"
+              />
+            </Field>
+          </div>
         </div>
         <div className="flex gap-2 justify-end mt-6">
           <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
@@ -1929,6 +1966,77 @@ function WarehouseModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── 計算設定パネル ────────────────────────────────────────────────────
+function CalcSettingsPanel() {
+  const [s, setS] = useState<CalcSettings>(() => getCalcSettings());
+  const update = (patch: Partial<CalcSettings>) => {
+    const next = { ...s, ...patch };
+    setS(next);
+    saveCalcSettings(next);
+  };
+  return (
+    <div className="max-w-xl">
+      <p className="text-sm text-slate-500 mb-6">
+        送り数の配分方法・基準在庫の決め方・重量計算の前提を設定します。変更は各画面の計算に即時反映されます（この端末に保存）。
+      </p>
+
+      {/* 配分方式 */}
+      <section className="mb-7">
+        <h3 className="font-bold text-slate-800 mb-1">送り数の配分方式</h3>
+        <p className="text-xs text-slate-400 mb-2.5">生産数が「全拠点の不足合計」に満たないときの配り方</p>
+        <div className="flex flex-col gap-2.5">
+          <label className="flex items-start gap-2 text-sm cursor-pointer">
+            <input type="radio" name="distMode" className="mt-1" checked={s.distributionMode === 'proportional'} onChange={() => update({ distributionMode: 'proportional' })} />
+            <span><b>不足比率で按分</b><br /><span className="text-xs text-slate-500">全拠点へ不足量に比例して薄く配分（既定）</span></span>
+          </label>
+          <label className="flex items-start gap-2 text-sm cursor-pointer">
+            <input type="radio" name="distMode" className="mt-1" checked={s.distributionMode === 'priority'} onChange={() => update({ distributionMode: 'priority' })} />
+            <span><b>優先度順に満たす</b><br /><span className="text-xs text-slate-500">優先度の高い拠点（拠点マスタで設定）から不足を満タンにし、生産が尽きたら以降は0</span></span>
+          </label>
+        </div>
+      </section>
+
+      {/* 基準在庫モード */}
+      <section className="mb-2">
+        <h3 className="font-bold text-slate-800 mb-1">基準在庫（在庫比較の基準）の決め方</h3>
+        <p className="text-xs text-slate-400 mb-2.5">「現在庫＋輸送中−予定出荷」がこの基準を下回った分を不足として補充します</p>
+        <div className="flex flex-col gap-2.5">
+          <label className="flex items-start gap-2 text-sm cursor-pointer">
+            <input type="radio" name="baseMode" className="mt-1" checked={s.baselineMode === 'manual'} onChange={() => update({ baselineMode: 'manual' })} />
+            <span><b>手入力</b><br /><span className="text-xs text-slate-500">拠点別の基準在庫を手入力した値で判定（既定）</span></span>
+          </label>
+          <label className="flex items-start gap-2 text-sm cursor-pointer">
+            <input type="radio" name="baseMode" className="mt-1" checked={s.baselineMode === 'auto'} onChange={() => update({ baselineMode: 'auto' })} />
+            <span><b>自動算出（安全在庫＋リードタイム）</b><br /><span className="text-xs text-slate-500">予定出荷から日平均を求め、リードタイム＋安全在庫日数ぶんを基準在庫とする</span></span>
+          </label>
+        </div>
+        {s.baselineMode === 'auto' && (
+          <div className="mt-3 grid grid-cols-2 gap-3 bg-slate-50 rounded-lg p-3.5">
+            <Field label="安全在庫（日数）">
+              <input
+                type="number" min={0} step={1} className={INPUT_CLASS}
+                value={s.safetyStockDays}
+                onChange={(e) => update({ safetyStockDays: parseInt(e.target.value, 10) || 0 })}
+              />
+            </Field>
+            <Field label="週の出荷日数" hint="日平均出荷の算出に使用">
+              <input
+                type="number" min={1} max={7} step={1} className={INPUT_CLASS}
+                value={s.shippingDaysPerWeek}
+                onChange={(e) => update({ shippingDaysPerWeek: parseInt(e.target.value, 10) || 1 })}
+              />
+            </Field>
+            <p className="col-span-2 text-xs text-slate-500 leading-relaxed">
+              基準在庫 = ⌈ (予定出荷 ÷ 週の出荷日数) ×（拠点のリードタイム日数 ＋ 安全在庫日数） ⌉<br />
+              ※ リードタイムは拠点マスタで拠点ごとに設定します。
+            </p>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

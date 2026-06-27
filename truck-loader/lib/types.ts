@@ -31,6 +31,8 @@ export interface Warehouse {
   name: string;
   truckType: string; // T01〜T06
   maxPallets: number;
+  priority?: number;      // 配分優先度（小さいほど優先＝先に満たす）。未設定は最後尾扱い。配分モード'priority'で使用
+  leadTimeDays?: number;  // 輸送リードタイム（日）。基準在庫'auto'モードで使用
 }
 
 export interface TruckType {
@@ -42,6 +44,7 @@ export interface TruckType {
   widthMM: number;
   depthMM: number;
   heightMM: number; // 荷室有効高さ（mm）
+  maxWeightKg?: number; // 最大積載重量（kg）。設定時は重量制約を積載計算に適用（0/未設定は重量制約なし）
 }
 
 export interface PalletType {
@@ -90,6 +93,26 @@ export type NonWorkingDates = Record<string, string[]>;
 /** 送り数手動上書き: productCode → warehouseCode → 数量（0=上書きなし扱い） */
 export type SendQtyManual = Record<string, Record<string, number>>;
 
+/** 送り数の配分方式: proportional=不足比率で按分 / priority=優先度順に満たす */
+export type DistributionMode = 'proportional' | 'priority';
+/** 基準在庫の決め方: manual=手入力 / auto=安全在庫＋リードタイムから自動算出 */
+export type BaselineMode = 'manual' | 'auto';
+
+/** 計算オプション（全体設定。localStorageに保管し計算へ渡す） */
+export interface CalcSettings {
+  distributionMode: DistributionMode;
+  baselineMode: BaselineMode;
+  safetyStockDays: number;       // 安全在庫日数（autoモードで使用）
+  shippingDaysPerWeek: number;   // 日平均出荷の算出に使う週の出荷日数（autoモードで使用）
+}
+
+export const DEFAULT_CALC_SETTINGS: CalcSettings = {
+  distributionMode: 'proportional',
+  baselineMode: 'manual',
+  safetyStockDays: 3,
+  shippingDaysPerWeek: 6,
+};
+
 // ─── 計算結果型 ──────────────────────────────────────────────────────
 
 export interface PalletItem {
@@ -128,6 +151,9 @@ export interface TruckLoad {
   maxPallets: number;   // 有効最大パレット数（この車種・2段積み込みの容量）
   layout?: TruckLayout; // 2D積載レイアウト（stacking算出後）
   upperPallets?: number; // 2段目に積まれたパレット枚数
+  totalWeightKg?: number; // 積載重量合計（kg）。製品の boxWeightKg×個数 を集計（重量データがある場合）
+  maxWeightKg?: number;   // この車種の最大積載重量（kg）。未設定は重量制約なし
+  overweight?: boolean;   // 重量超過フラグ（totalWeightKg > maxWeightKg）
 }
 
 export interface WarehousePlan {
@@ -135,6 +161,7 @@ export interface WarehousePlan {
   trucks: TruckLoad[];
   totalPallets: number;
   totalQty: number;
+  carryover?: number; // 1パレット未満で今回積まれず翌週へ繰越す個数の合計
 }
 
 // Per-day warehouse plan (extends WarehousePlan)

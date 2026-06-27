@@ -4,6 +4,7 @@ import React from 'react';
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { calcAllPlans, calcSendQty } from '@/lib/calculations';
+import { useCalcSettings } from '@/lib/useCalcSettings';
 import { HelpTip } from '@/components/HelpTip';
 import {
   parseProductionCSV,
@@ -110,8 +111,9 @@ function generateWeekCSV(
 type Tab = 'production' | 'location' | 'transit' | 'sales' | 'baseline' | 'sendqty';
 
 export default function ProductionPage() {
+  const calcSettings = useCalcSettings();
   const {
-    factories, products, warehouses, truckTypes,
+    factories, products, warehouses, truckTypes, palletTypes,
     productionPlan, dailyProductionPlan, baselineStock,
     locationStock, inTransitStock, plannedSales,
     operatingDays, nonWorkingDates,
@@ -191,8 +193,8 @@ export default function ProductionPage() {
 
   // 自動計算送り数（手動上書き前）
   const sendQtyCalc = useMemo(
-    () => calcSendQty(products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales),
-    [products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales],
+    () => calcSendQty(products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales, calcSettings),
+    [products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales, calcSettings],
   );
 
   // 有効送り数（手動上書きを反映）
@@ -211,8 +213,8 @@ export default function ProductionPage() {
   }, [products, warehouses, sendQtyCalc, sendQtyManual]);
 
   const plans = useMemo(
-    () => calcAllPlans(warehouses, products, truckTypes, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales, sendQtyManual),
-    [warehouses, products, truckTypes, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales, sendQtyManual],
+    () => calcAllPlans(warehouses, products, truckTypes, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales, sendQtyManual, palletTypes, calcSettings),
+    [warehouses, products, truckTypes, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales, sendQtyManual, palletTypes, calcSettings],
   );
 
   // Map from warehouse name → all warehouse objects with that name

@@ -3,8 +3,9 @@ import type {
   ProductionPlan, BaselineStock,
   LocationStock, InTransitStock, PlannedSales, SendQtyManual,
   PalletItem, TruckLoad, TruckLayout, TruckSlotItem, WarehousePlan,
-  WeeklyShippingSchedule, DayWarehousePlan,
+  WeeklyShippingSchedule, DayWarehousePlan, CalcSettings,
 } from './types';
+import { DEFAULT_CALC_SETTINGS } from './types';
 
 /** 切り上げ除算 */
 const ceilDiv = (a: number, b: number) => (b > 0 ? Math.ceil(a / b) : 0);
@@ -23,13 +24,23 @@ export function groupWarehousesByName(warehouses: Warehouse[]): Map<string, Ware
 export interface DistributionDetailRow {
   productCode: string;
   warehouseCode: string;
-  required: number;        // 拠点別 基準在庫数（個）
+  required: number;        // 拠点別 基準在庫数（個）。autoモードでは自動算出値
   currentStock: number;    // 拠点在庫（個）
   inTransit: number;       // 輸送中（個）
   plannedSales: number;    // 予定出荷（個）
   effectiveStock: number;  // max(0, 拠点在庫 + 輸送中 - 予定出荷)
   shortage: number;        // max(0, 必要 - 有効在庫)
   sendQty: number;         // 計算された送り数（個）
+  carryover: number;       // 端数（1パレット未満で今回送られず翌週へ繰越す個数）= sendQty mod パレット容量
+}
+
+/** baselineMode='auto' のときの基準在庫（個）を算出する。
+ *  基準在庫 = ⌈ 日平均出荷 ×（リードタイム日数 ＋ 安全在庫日数）⌉
+ *  日平均出荷 = 予定出荷 ÷ 週の出荷日数 */
+function autoBaseline(plannedSales: number, leadTimeDays: number, settings: CalcSettings): number {
+  const days = settings.shippingDaysPerWeek > 0 ? settings.shippingDaysPerWeek : 6;
+  const dailyShip = plannedSales / days;
+  return Math.ceil(dailyShip * (leadTimeDays + settings.safetyStockDays));
 }
 
 /**
@@ -47,41 +58,81 @@ export function calcDistributionDetail(
   locationStock: LocationStock,
   inTransitStock: InTransitStock = {},
   plannedSales: PlannedSales = {},
+  settings: CalcSettings = DEFAULT_CALC_SETTINGS,
 ): DistributionDetailRow[] {
   const rows: DistributionDetailRow[] = [];
 
+  // 配分の優先順位（priorityモード用）: priority昇順、未設定は最後尾、同値は登録順
+  const orderedWarehouses = [...warehouses]
+    .map((wh, idx) => ({ wh, idx }))
+    .sort((a, b) => {
+      const pa = a.wh.priority ?? Number.POSITIVE_INFINITY;
+      const pb = b.wh.priority ?? Number.POSITIVE_INFINITY;
+      return pa !== pb ? pa - pb : a.idx - b.idx;
+    })
+    .map((x) => x.wh);
+
   for (const p of products) {
     const production = productionPlan[p.code] ?? 0;
+    const cap = p.capacityPerPallet > 0 ? p.capacityPerPallet : 1;
 
     // 各拠点の不足数を計算（拠点在庫 + 輸送中 - 予定出荷 を有効在庫とする）
-    const stats: Record<string, Omit<DistributionDetailRow, 'productCode' | 'warehouseCode' | 'sendQty'>> = {};
+    const stats: Record<string, Omit<DistributionDetailRow, 'productCode' | 'warehouseCode' | 'sendQty' | 'carryover'>> = {};
     let totalShortage = 0;
 
     for (const wh of warehouses) {
-      const required = baselineStock[p.code]?.[wh.code] ?? 0;
+      const sales = plannedSales[p.code]?.[wh.code] ?? 0;
+      // 基準在庫: manual=手入力値 / auto=日平均出荷×(リードタイム＋安全在庫日数)
+      const required = settings.baselineMode === 'auto'
+        ? autoBaseline(sales, wh.leadTimeDays ?? 0, settings)
+        : (baselineStock[p.code]?.[wh.code] ?? 0);
       const currentStock = locationStock[p.code]?.[wh.code] ?? 0;
       const inTransit = inTransitStock[p.code]?.[wh.code] ?? 0;
-      const sales = plannedSales[p.code]?.[wh.code] ?? 0;
       const effectiveStock = Math.max(0, currentStock + inTransit - sales);
       const shortage = Math.max(0, required - effectiveStock);
       stats[wh.code] = { required, currentStock, inTransit, plannedSales: sales, effectiveStock, shortage };
       totalShortage += shortage;
     }
 
-    // 生産数を不足比率で按分
-    for (const wh of warehouses) {
-      const s = stats[wh.code];
-      let sendQty: number;
-      if (totalShortage === 0 || production === 0) {
-        sendQty = 0;
-      } else if (totalShortage <= production) {
-        // 生産数が不足を全て賄える場合：不足数をそのまま送る
-        sendQty = s.shortage;
-      } else {
-        // 生産数が不足に満たない場合：比率で按分
-        sendQty = Math.round(production * s.shortage / totalShortage);
+    // 送り数の決定
+    const sendMap: Record<string, number> = {};
+    if (totalShortage === 0 || production === 0) {
+      for (const wh of warehouses) sendMap[wh.code] = 0;
+    } else if (totalShortage <= production) {
+      // 生産数が不足を全て賄える：各拠点に不足数をそのまま
+      for (const wh of warehouses) sendMap[wh.code] = stats[wh.code].shortage;
+    } else if (settings.distributionMode === 'priority') {
+      // 優先度順に不足を満たす（生産が尽きたら以降は0）
+      let rem = production;
+      for (const wh of orderedWarehouses) {
+        const give = Math.min(stats[wh.code].shortage, rem);
+        sendMap[wh.code] = give;
+        rem -= give;
       }
-      rows.push({ productCode: p.code, warehouseCode: wh.code, ...s, sendQty });
+    } else {
+      // 不足比率で按分（既定）。丸め残差は不足の大きい拠点から1ずつ補正して合計を生産数に一致させる
+      let assigned = 0;
+      for (const wh of warehouses) {
+        const q = Math.round(production * stats[wh.code].shortage / totalShortage);
+        sendMap[wh.code] = q;
+        assigned += q;
+      }
+      let diff = production - assigned; // 余り(>0)or過剰(<0)
+      const byShortageDesc = [...warehouses].sort((a, b) => stats[b.code].shortage - stats[a.code].shortage);
+      let gi = 0;
+      while (diff !== 0 && byShortageDesc.length > 0) {
+        const wh = byShortageDesc[gi % byShortageDesc.length];
+        if (diff > 0) { sendMap[wh.code] += 1; diff -= 1; }
+        else if (sendMap[wh.code] > 0) { sendMap[wh.code] -= 1; diff += 1; }
+        gi++;
+        if (gi > byShortageDesc.length * 1000) break; // 安全弁
+      }
+    }
+
+    for (const wh of warehouses) {
+      const sendQty = sendMap[wh.code] ?? 0;
+      const carryover = sendQty % cap; // 1パレット未満の端数（翌週繰越）
+      rows.push({ productCode: p.code, warehouseCode: wh.code, ...stats[wh.code], sendQty, carryover });
     }
   }
 
@@ -100,13 +151,14 @@ export function calcSendQty(
   locationStock: LocationStock,
   inTransitStock: InTransitStock = {},
   plannedSales: PlannedSales = {},
+  settings: CalcSettings = DEFAULT_CALC_SETTINGS,
 ): Record<string, Record<string, number>> {
   const sendQty: Record<string, Record<string, number>> = {};
   // 製品キーを必ず初期化（拠点ゼロでも空オブジェクトを保持し従来挙動と一致させる）
   for (const p of products) sendQty[p.code] = {};
 
   const rows = calcDistributionDetail(
-    products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales,
+    products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales, settings,
   );
   for (const r of rows) {
     sendQty[r.productCode][r.warehouseCode] = r.sendQty;
@@ -225,12 +277,22 @@ export function calcWarehousePlan(
   const hasBottomStackable = shippedProds.some((p) => p.allowStackOnTop !== false);
   const canStackProducts = hasUpperStackable && hasBottomStackable;
 
+  // 製品コード → 1パレットあたり重量(kg)（boxWeightKg×パレット容量。0=重量データなし）
+  const productMap = Object.fromEntries(products.map((p) => [p.code, p]));
+  const palletWeightOf = (code: string): number => {
+    const p = productMap[code];
+    const w = p?.boxWeightKg ?? 0;
+    return w > 0 ? w * (p.capacityPerPallet || 0) : 0;
+  };
+
   // 製品ごとに送り数 → パレット数を計算（端数は切り捨て＝完全パレット単位のみ）
   const items: { productCode: string; pallets: number; qty: number; capacityPerPallet: number }[] = [];
+  let carryover = 0; // 1パレット未満で今回送られない端数（翌週繰越）
   for (const p of products) {
     const qty = sendQty[p.code]?.[warehouseCode] ?? 0;
     if (qty <= 0) continue;
     const pallets = Math.floor(qty / p.capacityPerPallet); // 端数切り捨て
+    carryover += qty - pallets * p.capacityPerPallet;      // 切り捨てた端数を繰越に積む
     if (pallets <= 0) continue; // 1パレット未満は積載しない
     items.push({
       productCode: p.code,
@@ -241,7 +303,7 @@ export function calcWarehousePlan(
   }
 
   if (items.length === 0) {
-    return { warehouseCode, trucks: [], totalPallets: 0, totalQty: 0 };
+    return { warehouseCode, trucks: [], totalPallets: 0, totalQty: 0, carryover };
   }
 
   // 総パレット数 P を最適なトラック構成で運ぶ
@@ -264,54 +326,69 @@ export function calcWarehousePlan(
   let qi = 0;
   const trucks: TruckLoad[] = [];
 
-  for (let t = 0; t < selected.length; t++) {
-    const cap = selected[t].eff;
+  /** 1台分を、スロット容量＋（設定時）重量制約の範囲で満載に詰める */
+  const fillOneTruck = (slotCap: number, maxWeightKg?: number) => {
     const truckItems: PalletItem[] = [];
     let slots = 0;
-    while (slots < cap && qi < queue.length) {
+    let weight = 0;
+    let overweight = false;
+    const weightLimited = !!(maxWeightKg && maxWeightKg > 0);
+    while (slots < slotCap && qi < queue.length) {
       const it = queue[qi];
       if (it.rem <= 0) { qi++; continue; }
-      const place = Math.min(it.rem, cap - slots);
+      let place = Math.min(it.rem, slotCap - slots);
+      const pw = palletWeightOf(it.productCode);
+      if (weightLimited && pw > 0) {
+        const byWeight = Math.floor((maxWeightKg! - weight) / pw);
+        if (byWeight < place) {
+          if (byWeight <= 0) {
+            if (slots === 0) { place = 1; overweight = true; } // 空車に1枚すら不可＝1パレットが上限超過。無限ループ回避で1枚積み警告
+            else break; // 既積載あり → 重量で打ち切り次の車へ
+          } else {
+            place = byWeight;
+          }
+        }
+      }
       const qtyHere = Math.min(it.qtyRem, place * it.capacityPerPallet);
       truckItems.push({ productCode: it.productCode, pallets: place, qty: qtyHere, capacityPerPallet: it.capacityPerPallet });
-      it.rem -= place;
-      it.qtyRem -= qtyHere;
-      slots += place;
+      it.rem -= place; it.qtyRem -= qtyHere; slots += place; weight += place * pw;
       if (it.rem <= 0) qi++;
     }
-    if (truckItems.length === 0) continue;
+    return { truckItems, slots, weight, overweight };
+  };
+
+  const pushTruck = (cand: TruckCandidate, r: { truckItems: PalletItem[]; slots: number; weight: number; overweight: boolean }) => {
+    const maxW = cand.type.maxWeightKg;
     trucks.push({
       truckIndex: trucks.length + 1,
-      truckTypeCode: selected[t].type.code,
-      items: truckItems,
-      totalPallets: slots,
-      maxPallets: cap,
+      truckTypeCode: cand.type.code,
+      items: r.truckItems,
+      totalPallets: r.slots,
+      maxPallets: cand.eff,
+      totalWeightKg: r.weight > 0 ? Math.round(r.weight) : undefined,
+      maxWeightKg: maxW && maxW > 0 ? maxW : undefined,
+      overweight: r.overweight || (!!(maxW && maxW > 0) && r.weight > maxW),
     });
+  };
+
+  for (let t = 0; t < selected.length; t++) {
+    const r = fillOneTruck(selected[t].eff, selected[t].type.maxWeightKg);
+    if (r.truckItems.length === 0) continue;
+    pushTruck(selected[t], r);
   }
 
-  // 念のため：選定容量が不足して積み残しがあれば最大候補で追加（通常発生しない）
+  // 念のため：選定容量が不足して積み残しがあれば最大候補で追加（重量制約で台数が増えた場合もここで吸収）
   const biggest = [...candidates].sort((a, b) => b.eff - a.eff)[0];
   while (qi < queue.length) {
-    const cap = biggest.eff;
-    const truckItems: PalletItem[] = [];
-    let slots = 0;
-    while (slots < cap && qi < queue.length) {
-      const it = queue[qi];
-      if (it.rem <= 0) { qi++; continue; }
-      const place = Math.min(it.rem, cap - slots);
-      const qtyHere = Math.min(it.qtyRem, place * it.capacityPerPallet);
-      truckItems.push({ productCode: it.productCode, pallets: place, qty: qtyHere, capacityPerPallet: it.capacityPerPallet });
-      it.rem -= place; it.qtyRem -= qtyHere; slots += place;
-      if (it.rem <= 0) qi++;
-    }
-    if (truckItems.length === 0) break;
-    trucks.push({ truckIndex: trucks.length + 1, truckTypeCode: biggest.type.code, items: truckItems, totalPallets: slots, maxPallets: cap });
+    const r = fillOneTruck(biggest.eff, biggest.type.maxWeightKg);
+    if (r.truckItems.length === 0) break;
+    pushTruck(biggest, r);
   }
 
   const totalPallets = trucks.reduce((s, t) => s + t.totalPallets, 0);
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
 
-  return { warehouseCode, trucks, totalPallets, totalQty };
+  return { warehouseCode, trucks, totalPallets, totalQty, carryover };
 }
 
 /**
@@ -329,12 +406,13 @@ export function calcAllPlans(
   plannedSales: PlannedSales = {},
   sendQtyManual: SendQtyManual = {},
   palletTypes: PalletType[] = [],
+  settings: CalcSettings = DEFAULT_CALC_SETTINGS,
 ): Record<string, WarehousePlan> {
   const truckMap = Object.fromEntries(truckTypes.map(t => [t.code, t]));
 
   // 在庫不足に基づく送り数を計算（輸送中・予定出荷も考慮）
   const sendQty = calcSendQty(
-    products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales,
+    products, warehouses, productionPlan, baselineStock, locationStock, inTransitStock, plannedSales, settings,
   );
 
   // 手動上書きを適用
@@ -393,6 +471,7 @@ export function calcWeeklyPlans(
   plannedSales: PlannedSales = {},
   sendQtyManual: SendQtyManual = {},
   palletTypes: PalletType[] = [],
+  settings: CalcSettings = DEFAULT_CALC_SETTINGS,
 ): Record<string, DayWarehousePlan[]> {
   const truckMap = Object.fromEntries(truckTypes.map(t => [t.code, t]));
   const result: Record<string, DayWarehousePlan[]> = {};
@@ -416,6 +495,7 @@ export function calcWeeklyPlans(
       locationStock,
       inTransitStock,
       plannedSales,
+      settings,
     );
 
     // 手動上書きを適用（この工場の製品のみ）
@@ -467,8 +547,8 @@ export function calcWeeklyPlans(
               daySendQty[p.code] = { [firstWh.code]: 0 };
               continue;
             }
-            // ① 週間個数 → 必要パレット数（1枚未満は切り上げ）
-            const weeklyPallets = Math.ceil(weeklyQty / p.capacityPerPallet);
+            // ① 週間個数 → パレット数（1枚未満の端数は切り捨て＝翌週繰越。週次計算と方針統一）
+            const weeklyPallets = Math.floor(weeklyQty / p.capacityPerPallet);
             // ② パレット数を日数で均等分割。余りは最初の余り分の日に1枚ずつ積む
             const basePallets     = Math.floor(weeklyPallets / numDays);
             const remainderPallets = weeklyPallets % numDays;
