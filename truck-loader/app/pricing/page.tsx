@@ -97,6 +97,7 @@ export default function PricingPage() {
           <Link href="/" className="text-blue-600 hover:underline">スマコウバ積載</Link>
           <Link href="/support" className="text-blue-600 hover:underline">サポート</Link>
           <Link href="/privacy" className="text-blue-600 hover:underline">プライバシーポリシー</Link>
+          <a href="https://www.sumakouba.com/tokushoho.html" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">特定商取引法に基づく表記</a>
         </div>
         <p className="text-center text-[11px] text-gray-400 mt-3">運営：スマコウバ運営事務局</p>
       </div>
