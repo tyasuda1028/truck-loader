@@ -263,25 +263,21 @@ export async function loadTruckTypes(): Promise<TruckType[]> {
   return rows.map((r) => ({
     code: r.code as string,
     name: r.name as string,
-    maxPallets: r.max_pallets as number,
-    cols: r.cols as number,
-    rows: r.rows as number,
     widthMM: r.width_mm as number,
     depthMM: r.depth_mm as number,
     heightMM: (r.height_mm as number | null) ?? 2300,
+    maxWeightKg: (r.max_weight_kg as number | null) ?? undefined,
   }));
 }
 
 export async function upsertTruckType(t: TruckType) {
   const cid = await getCompanyId();
+  // 旧 max_pallets/cols/rows 列は残置だが書き込まない（内寸から自動算出するため不要）
   await sql`
-    INSERT INTO truck_types (company_id, code, name, max_pallets, cols, rows, width_mm, depth_mm, height_mm)
-    VALUES (${cid}, ${t.code}, ${t.name}, ${t.maxPallets}, ${t.cols}, ${t.rows}, ${t.widthMM}, ${t.depthMM}, ${t.heightMM})
+    INSERT INTO truck_types (company_id, code, name, width_mm, depth_mm, height_mm)
+    VALUES (${cid}, ${t.code}, ${t.name}, ${t.widthMM}, ${t.depthMM}, ${t.heightMM})
     ON CONFLICT (company_id, code) DO UPDATE SET
       name        = EXCLUDED.name,
-      max_pallets = EXCLUDED.max_pallets,
-      cols        = EXCLUDED.cols,
-      rows        = EXCLUDED.rows,
       width_mm    = EXCLUDED.width_mm,
       depth_mm    = EXCLUDED.depth_mm,
       height_mm   = EXCLUDED.height_mm
@@ -727,16 +723,13 @@ import {
 export async function seedDefaultsForCompany(companyId: string): Promise<void> {
   const db = neon(process.env.DATABASE_URL!);
 
-  // Truck types
+  // Truck types（荷台内寸のみ。旧 max_pallets/cols/rows 列は書き込まない）
   for (const t of DEFAULT_TRUCK_TYPES) {
     await db`
-      INSERT INTO truck_types (company_id, code, name, max_pallets, cols, rows, width_mm, depth_mm, height_mm)
-      VALUES (${companyId}, ${t.code}, ${t.name}, ${t.maxPallets}, ${t.cols}, ${t.rows}, ${t.widthMM}, ${t.depthMM}, ${t.heightMM ?? 2300})
+      INSERT INTO truck_types (company_id, code, name, width_mm, depth_mm, height_mm)
+      VALUES (${companyId}, ${t.code}, ${t.name}, ${t.widthMM}, ${t.depthMM}, ${t.heightMM ?? 2300})
       ON CONFLICT (company_id, code) DO UPDATE SET
         name        = EXCLUDED.name,
-        max_pallets = EXCLUDED.max_pallets,
-        cols        = EXCLUDED.cols,
-        rows        = EXCLUDED.rows,
         width_mm    = EXCLUDED.width_mm,
         depth_mm    = EXCLUDED.depth_mm,
         height_mm   = EXCLUDED.height_mm

@@ -84,7 +84,6 @@ export function PrintableLoadingPlan({ factoryName, weekLabel, plans, warehouses
   const whName = (code: string) => warehouses.find((w) => w.code === code)?.name ?? code;
   const ttName = (code: string) => truckTypes.find((t) => t.code === code)?.name ?? code;
   const ttObj = (code: string) => truckTypes.find((t) => t.code === code);
-  const ttMax = (code: string) => ttObj(code)?.maxPallets ?? 0;
 
   const sorted = [...plans]
     .filter((p) => p.trucks.length > 0)
@@ -117,7 +116,7 @@ export function PrintableLoadingPlan({ factoryName, weekLabel, plans, warehouses
         </thead>
         <tbody>
           {sorted.map((p, i) => {
-            const cap = p.trucks.reduce((s, t) => s + (t.maxPallets || ttMax(t.truckTypeCode)), 0);
+            const cap = p.trucks.reduce((s, t) => s + (t.maxPallets || 0), 0);
             const rate = cap > 0 ? Math.round((p.totalPallets / cap) * 100) : 0;
             return (
               <tr key={i}>
@@ -143,11 +142,12 @@ export function PrintableLoadingPlan({ factoryName, weekLabel, plans, warehouses
           // 全配置を積込順に列挙（下段→上段、orderNum順）
           const placements: { item: TruckSlotItem; tier: string }[] = [];
           if (layout) {
-            layout.floor.forEach((rowArr) => rowArr.forEach((c) => { if (c) placements.push({ item: c, tier: '下段' }); }));
-            layout.upper.forEach((rowArr) => rowArr.forEach((c) => { if (c) placements.push({ item: c, tier: '上段' }); }));
+            layout.layers.forEach((layer, ti2) => layer.forEach((rowArr) => rowArr.forEach((c) => {
+              if (c) placements.push({ item: c, tier: `${ti2 + 1}段目` });
+            })));
             placements.sort((a, b) => a.item.orderNum - b.item.orderNum);
           }
-          const hasUpper = layout ? layout.upper.flat().some(Boolean) : false;
+          const multiTier = layout ? layout.tierCount > 1 : false;
           return (
             <div
               key={`${p.warehouseCode}-${p.dayOfWeek}-${ti}`}
@@ -169,8 +169,17 @@ export function PrintableLoadingPlan({ factoryName, weekLabel, plans, warehouses
                 {layout && (
                   <div style={{ flexShrink: 0 }}>
                     <div style={{ fontSize: 10, color: '#64748b', textAlign: 'center', marginBottom: 2 }}>↑ 前（キャブ側）</div>
-                    {hasUpper && <LayoutGrid title="上段" grid={layout.upper} rows={layout.rows} cols={layout.cols} productColors={productColors} productNames={productNames} />}
-                    <LayoutGrid title={hasUpper ? '下段（床面）' : '荷台'} grid={layout.floor} rows={layout.rows} cols={layout.cols} productColors={productColors} productNames={productNames} />
+                    {Array.from({ length: layout.tierCount }, (_, i) => layout.tierCount - 1 - i).map((tier) => (
+                      <LayoutGrid
+                        key={tier}
+                        title={multiTier ? `${tier + 1}段目${tier === 0 ? '（床面）' : ''}` : '荷台'}
+                        grid={layout.layers[tier]}
+                        rows={layout.rows}
+                        cols={layout.cols}
+                        productColors={productColors}
+                        productNames={productNames}
+                      />
+                    ))}
                     <div style={{ fontSize: 10, color: '#64748b', textAlign: 'center', marginTop: 2 }}>↓ 後（ウイング扉）</div>
                   </div>
                 )}

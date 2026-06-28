@@ -121,9 +121,9 @@ export default function SettingsPage() {
     code: '', name: '', widthMM: 1100, depthMM: 1100, heightMM: 144, maxWeightKg: 1000, loadedHeightMM: 1200,
   });
 
-  // トラック型の新規追加用空テンプレート
+  // トラック型の新規追加用空テンプレート（荷台内寸のみ）
   const newTruckType = (): import('@/lib/types').TruckType => ({
-    code: '', name: '', maxPallets: 8, cols: 2, rows: 4, widthMM: 2100, depthMM: 5200, heightMM: 2300,
+    code: '', name: '', widthMM: 2100, depthMM: 5200, heightMM: 2300,
   });
 
   const handleSaveTruck = (truck: import('@/lib/types').TruckType) => {
@@ -1056,8 +1056,6 @@ export default function SettingsPage() {
                 <tr className="bg-slate-50 text-xs text-slate-500">
                   <th className="px-4 py-2.5 text-left font-semibold">コード</th>
                   <th className="px-4 py-2.5 text-left font-semibold">名称</th>
-                  <th className="px-4 py-2.5 text-right font-semibold">最大P数</th>
-                  <th className="px-4 py-2.5 text-right font-semibold">列×行</th>
                   <th className="px-4 py-2.5 text-right font-semibold">幅（mm）</th>
                   <th className="px-4 py-2.5 text-right font-semibold">奥行き（mm）</th>
                   <th className="px-4 py-2.5 text-right font-semibold">荷室高さ（mm）</th>
@@ -1076,10 +1074,6 @@ export default function SettingsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-2 font-medium">{t.name}</td>
-                      <td className="px-4 py-2 text-right">{t.maxPallets}枚</td>
-                      <td className="px-4 py-2 text-right text-slate-500 text-xs">
-                        {t.cols}列 × {t.rows}行
-                      </td>
                       <td className="px-4 py-2 text-right text-slate-600">{t.widthMM.toLocaleString()}</td>
                       <td className="px-4 py-2 text-right text-slate-600">{t.depthMM.toLocaleString()}</td>
                       <td className="px-4 py-2 text-right font-semibold text-sky-700">
@@ -1400,36 +1394,26 @@ function TruckModal({
   // フィールドをローカル文字列 state で管理（入力中の中間値を安全に保持）
   const [code,       setCode]       = useState(truck.code);
   const [name,       setName]       = useState(truck.name);
-  const [maxPallets, setMaxPallets] = useState(String(truck.maxPallets));
   const [heightMM,   setHeightMM]   = useState(String(truck.heightMM));
-  const [cols,       setCols]       = useState(String(truck.cols));
-  const [rows,       setRows]       = useState(String(truck.rows));
   const [widthMM,    setWidthMM]    = useState(String(truck.widthMM));
   const [depthMM,    setDepthMM]    = useState(String(truck.depthMM));
   const [maxWeightKg, setMaxWeightKg] = useState(String(truck.maxWeightKg ?? 0));
   const [error,      setError]      = useState<string | null>(null);
 
   // プレビュー用に現在値を数値化（無効なら元の値）
-  const pMaxPallets = parseInt(maxPallets, 10) || 0;
   const pHeightMM   = parseInt(heightMM, 10)   || 0;
-  const pCols       = parseInt(cols, 10)        || 0;
-  const pRows       = parseInt(rows, 10)        || 0;
   const pWidthMM    = parseInt(widthMM, 10)     || 0;
   const pDepthMM    = parseInt(depthMM, 10)     || 0;
   const pMaxWeightKg = parseInt(maxWeightKg, 10) || 0;
 
   const handleSave = () => {
     if (!code.trim() || !name.trim()) { setError('コードと名称は必須です'); return; }
-    if (!pMaxPallets || !pCols || !pRows) { setError('最大P数・列数・行数は1以上の整数を入力してください'); return; }
+    if (!pWidthMM || !pDepthMM) { setError('荷台内寸（幅・奥行き）を入力してください'); return; }
     if (!pHeightMM)  { setError('荷室高さは100mm以上の値を入力してください'); return; }
-    if (!pWidthMM || !pDepthMM) { setError('荷台幅・奥行きを入力してください'); return; }
     onSave({
       code: code.trim().toUpperCase(),
       name: name.trim(),
-      maxPallets: pMaxPallets,
       heightMM:   pHeightMM,
-      cols:       pCols,
-      rows:       pRows,
       widthMM:    pWidthMM,
       depthMM:    pDepthMM,
       maxWeightKg: pMaxWeightKg > 0 ? pMaxWeightKg : undefined,
@@ -1458,25 +1442,15 @@ function TruckModal({
               placeholder="例: ウイング車(4t)"
             />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="最大パレット数">
-              <input
-                type="number" min={1} max={30}
-                className={INPUT_CLASS}
-                value={maxPallets}
-                onChange={(e) => setMaxPallets(e.target.value)}
-              />
-            </Field>
-            <Field label="荷室高さ（mm）" hint="2段積み判定に使用">
-              <input
-                type="number" min={100} step={50}
-                className={INPUT_CLASS}
-                value={heightMM}
-                onChange={(e) => setHeightMM(e.target.value)}
-                placeholder="2300"
-              />
-            </Field>
-          </div>
+          <Field label="荷室高さ（mm）" hint="段数の自動算出に使用（高さ÷パレット高）">
+            <input
+              type="number" min={100} step={50}
+              className={INPUT_CLASS}
+              value={heightMM}
+              onChange={(e) => setHeightMM(e.target.value)}
+              placeholder="2300"
+            />
+          </Field>
           <Field label="最大積載重量（kg）" hint="0=重量制約なし。設定すると容量＋重量で台数を判定し超過を警告">
             <input
               type="number" min={0} step={100}
@@ -1487,28 +1461,7 @@ function TruckModal({
             />
           </Field>
           <div className="border-t border-slate-100 pt-3">
-            <p className="text-[10px] text-slate-400 mb-2">荷台グリッド（積載レイアウト表示用）</p>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="横列数（幅方向）">
-                <input
-                  type="number" min={1} max={4}
-                  className={INPUT_CLASS}
-                  value={cols}
-                  onChange={(e) => setCols(e.target.value)}
-                />
-              </Field>
-              <Field label="縦行数（奥行き方向）">
-                <input
-                  type="number" min={1} max={20}
-                  className={INPUT_CLASS}
-                  value={rows}
-                  onChange={(e) => setRows(e.target.value)}
-                />
-              </Field>
-            </div>
-          </div>
-          <div className="border-t border-slate-100 pt-3">
-            <p className="text-[10px] text-slate-400 mb-2">荷台サイズ（mm）</p>
+            <p className="text-[10px] text-slate-400 mb-2">荷台内寸（mm）※床枚数・段数はパレット寸法から自動算出</p>
             <div className="grid grid-cols-2 gap-3">
               <Field label="幅（mm）">
                 <input
@@ -1531,9 +1484,9 @@ function TruckModal({
 
           {/* プレビュー */}
           <div className="bg-slate-50 rounded-lg px-3 py-2 text-xs text-slate-500">
-            最大P数: {pMaxPallets || '—'}枚　グリッド: {pCols || '—'}列 × {pRows || '—'}行
-            　荷台: {pWidthMM ? pWidthMM.toLocaleString() : '—'} × {pDepthMM ? pDepthMM.toLocaleString() : '—'} mm
+            荷台内寸: {pWidthMM ? pWidthMM.toLocaleString() : '—'} × {pDepthMM ? pDepthMM.toLocaleString() : '—'} mm
             　荷室高: {pHeightMM ? pHeightMM.toLocaleString() : '—'} mm
+            <span className="block mt-0.5 text-[10px] text-slate-400">※ 床枚数・段数はパレット寸法と内寸から積載計画時に自動算出</span>
           </div>
 
           {error && (

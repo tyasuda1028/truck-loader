@@ -146,7 +146,7 @@ export default function SetupWizard() {
               <Field label="最大トラック">
                 <select value={wh.truckType} onChange={(e) => setWh({ ...wh, truckType: e.target.value })} className={inputCls}>
                   <option value="">選択</option>
-                  {s.truckTypes.map((t) => <option key={t.code} value={t.code}>{t.name}（{t.maxPallets}）</option>)}
+                  {s.truckTypes.map((t) => <option key={t.code} value={t.code}>{t.name}（{t.widthMM}×{t.depthMM}mm）</option>)}
                 </select>
               </Field>
               <Field label="最大パレット"><input type="number" value={wh.maxPallets} onChange={(e) => setWh({ ...wh, maxPallets: Number(e.target.value) || 0 })} className={clsx(inputCls, 'w-24')} /></Field>

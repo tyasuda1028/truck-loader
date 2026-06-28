@@ -33,11 +33,9 @@ export interface Warehouse {
 export interface TruckType {
   code: string;
   name: string;
-  maxPallets: number;
-  cols: number;   // 横列数（荷台幅方向）
-  rows: number;   // 縦行数（奥行き方向）
-  widthMM: number;
-  depthMM: number;
+  // 荷台内寸のみを設定。床枚数(列×行)・段数・最大P数はパレット寸法と内寸から自動算出する。
+  widthMM: number;  // 荷台内寸 幅（mm）
+  depthMM: number;  // 荷台内寸 奥行き（mm）
   heightMM: number; // 荷室有効高さ（mm）
   maxWeightKg?: number; // 最大積載重量（kg）。設定時は重量制約を積載計算に適用（0/未設定は重量制約なし）
 }
@@ -127,25 +125,23 @@ export interface TruckSlotItem {
   orderNum: number;
 }
 
-/** ウイング車側面図レイアウト */
+/** 荷台レイアウト（N段対応）。layers[tier][row][col]（tier=0 が床面） */
 export interface TruckLayout {
   cols: number;
   rows: number;
   truckHeightMM: number;
-  /** [row][col] → floor pallet (row=0 前方, row=rows-1 後方) */
-  floor: (TruckSlotItem | null)[][];
-  /** [row][col] → upper pallet (null = 不可または空き) */
-  upper: (TruckSlotItem | null)[][];
+  tierCount: number; // 使用された最大段数
+  /** layers[tier][row][col] → パレット（null=空き）。tier=0 が床面、row=0 が前方 */
+  layers: (TruckSlotItem | null)[][][];
 }
 
 export interface TruckLoad {
   truckIndex: number;   // 1号車〜
   truckTypeCode: string; // この積載に選定されたトラック種別コード（T01〜）
   items: PalletItem[];  // 積載アイテム（積み込み順）
-  totalPallets: number; // 使用パレット数（床面のみ）
-  maxPallets: number;   // 有効最大パレット数（この車種・2段積み込みの容量）
-  layout?: TruckLayout; // 2D積載レイアウト（stacking算出後）
-  upperPallets?: number; // 2段目に積まれたパレット枚数
+  totalPallets: number; // 使用パレット数（全段合計）
+  maxPallets: number;   // 有効最大パレット数（内寸×パレット寸法×段数から算出した容量）
+  layout?: TruckLayout; // N段積載レイアウト（stacking算出後）
   totalWeightKg?: number; // 積載重量合計（kg）。製品の boxWeightKg×個数 を集計（重量データがある場合）
   maxWeightKg?: number;   // この車種の最大積載重量（kg）。未設定は重量制約なし
   overweight?: boolean;   // 重量超過フラグ（totalWeightKg > maxWeightKg）

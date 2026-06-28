@@ -636,7 +636,7 @@ export default function LoadingPlanInner() {
                       )}
                     </div>
                     <p className="text-xs text-slate-500">
-                      {activeTruckType?.name ? `${activeTruckType.name}（最大${load?.maxPallets ?? activeTruckType.maxPallets}パレット${load && load.maxPallets > activeTruckType.maxPallets ? '・2段積み' : ''}）・` : ''}
+                      {activeTruckType?.name ? `${activeTruckType.name}（最大${load?.maxPallets ?? 0}パレット${load?.layout && load.layout.tierCount > 1 ? `・${load.layout.tierCount}段積み` : ''}）・` : ''}
                       {effectiveDay === -1 ? '週計' : DAY_LABELS[effectiveDay] + '曜日'} {selectedMerged.totalTrucks}台
                       ・総計 {selectedMerged.totalPallets}パレット・出荷 {selectedMerged.totalQty.toLocaleString()}個
                     </p>
@@ -711,7 +711,7 @@ export default function LoadingPlanInner() {
                     <div className="flex gap-3 md:gap-6 items-start flex-wrap">
                       <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-3 md:p-5 w-full md:w-auto">
                         <div className="text-xs font-semibold text-slate-500 mb-3">
-                          積載レイアウト ─ {clampedTruck + 1}号車（{load.maxPallets > activeTruckType.maxPallets ? '2段込み' : '床面'} {load.totalPallets}/{load.maxPallets}パレット）
+                          積載レイアウト ─ {clampedTruck + 1}号車（{load.layout && load.layout.tierCount > 1 ? `${load.layout.tierCount}段込み` : '床面'} {load.totalPallets}/{load.maxPallets}パレット）
                           {load.maxWeightKg ? (
                             <span className={clsx('ml-2', load.overweight ? 'text-red-600 font-bold' : 'text-slate-400')}>
                               ・{Math.round(load.totalWeightKg ?? 0).toLocaleString()}/{load.maxWeightKg.toLocaleString()}kg

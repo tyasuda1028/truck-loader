@@ -170,27 +170,43 @@ export function calcSendQty(
 /** 選定候補トラック（有効容量つき） */
 interface TruckCandidate {
   type: TruckType;
-  floorCap: number; // 床面スロット数（ドック制約の判定に使用）
-  eff: number;      // 有効容量（2段積み込み）
+  floorCap: number; // 床面スロット数（内寸÷パレット寸法。ドック制約の判定に使用）
+  eff: number;      // 有効容量（床枚数 × 最大段数）
+}
+
+/** 荷台内寸とパレット寸法から床面の列×行（パレット枚数）を算出する */
+function truckFloorGrid(widthMM: number, depthMM: number, palletW: number, palletD: number): { cols: number; rows: number } {
+  if (palletW <= 0 || palletD <= 0) return { cols: 0, rows: 0 };
+  const cols = Math.max(0, Math.floor(widthMM / palletW));
+  const rows = Math.max(0, Math.floor(depthMM / palletD));
+  return { cols, rows };
+}
+
+/** 荷室高さ・パレット高さ・上積み可否から最大段数を求める */
+function maxTiers(truckHeightMM: number, loadedH: number, canStackProducts: boolean): number {
+  if (!canStackProducts || loadedH <= 0) return 1;
+  return Math.max(1, Math.floor(truckHeightMM / loadedH));
 }
 
 /**
  * フリートから、ドック制約（床面 ≤ dockFloorCap）を満たす候補を作る。
- * 各候補の有効容量は積載予定製品のスタッキング可否で決まる。
+ * 容量は「内寸÷パレット寸法＝床枚数」×「荷室高÷パレット高＝段数(上積み可否依存)」で自動算出。
  */
 function buildTruckCandidates(
   fleet: TruckType[],
   dockFloorCap: number,
   canStackProducts: boolean,
-  minLoadedH: number,
+  loadedH: number,
+  palletW: number,
+  palletD: number,
 ): TruckCandidate[] {
   const cands: TruckCandidate[] = [];
   for (const t of fleet) {
-    const floorCap = t.cols * t.rows;
+    const { cols, rows } = truckFloorGrid(t.widthMM, t.depthMM, palletW, palletD);
+    const floorCap = cols * rows;
     if (floorCap <= 0 || floorCap > dockFloorCap) continue; // ドックに入らない大型は除外
     const truckH = t.heightMM ?? 2300;
-    const canStack = canStackProducts && minLoadedH * 2 <= truckH;
-    const eff = Math.max(t.maxPallets, canStack ? floorCap * 2 : floorCap);
+    const eff = floorCap * maxTiers(truckH, loadedH, canStackProducts);
     cands.push({ type: t, floorCap, eff });
   }
   return cands;
@@ -204,7 +220,11 @@ function buildTruckCandidates(
  */
 export function selectTrucksForPallets(P: number, candidates: TruckCandidate[]): TruckCandidate[] {
   if (P <= 0 || candidates.length === 0) return [];
-  const sortedDesc = [...candidates].sort((a, b) => b.eff - a.eff);
+  // 有効容量0の候補（パレットが荷台内寸より大きい／トラック寸法が未入力 等）は除外。
+  // 残すと以下のループが eff=0 で進まず無限ループになる。
+  const usable = candidates.filter((c) => c.eff > 0);
+  if (usable.length === 0) return [];
+  const sortedDesc = [...usable].sort((a, b) => b.eff - a.eff);
   const maxEff = sortedDesc[0].eff;
 
   // 大きすぎる P は DP 配列が膨らむためグリーディ（最大車種を満載で並べ、端数を最適車種で）
@@ -269,9 +289,18 @@ export function calcWarehousePlan(
 ): WarehousePlan {
   const palletTypeMap = Object.fromEntries(palletTypes.map((pt) => [pt.code, pt]));
   const shippedProds = products.filter((p) => (sendQty[p.code]?.[warehouseCode] ?? 0) > 0);
-  const minLoadedH = shippedProds.length > 0
-    ? Math.min(...shippedProds.map((p) => palletTypeMap[p.palletType]?.loadedHeightMM ?? 1200))
+  // 容量段数の算出には最大積載高を使う（保守的＝必ず収まる段数。最小高で算出すると
+  // 背の高い荷で容量を過大計上し、実レイアウト(calcStackingLayout)と枚数が食い違うため）
+  const repLoadedH = shippedProds.length > 0
+    ? Math.max(...shippedProds.map((p) => palletTypeMap[p.palletType]?.loadedHeightMM ?? 1200))
     : 1200;
+  // 代表パレット寸法（床枚数算出用）。混載時は最大フットプリント＝保守的（実際に必ず収まる枚数）
+  const palletW = shippedProds.length > 0
+    ? Math.max(...shippedProds.map((p) => palletTypeMap[p.palletType]?.widthMM ?? 1100))
+    : 1100;
+  const palletD = shippedProds.length > 0
+    ? Math.max(...shippedProds.map((p) => palletTypeMap[p.palletType]?.depthMM ?? 1100))
+    : 1100;
   // 段積み条件: 「上積み可否」の製品が1つでもあれば段積みを試みる（高さは車種ごとに判定）
   const canStackProducts = shippedProds.some((p) => p.allowStackOnTop !== false);
 
@@ -306,13 +335,14 @@ export function calcWarehousePlan(
 
   // 総パレット数 P を最適なトラック構成で運ぶ
   const totalP = items.reduce((s, i) => s + i.pallets, 0);
-  const dockFloorCap = dockTruck.cols * dockTruck.rows;
-  let candidates = buildTruckCandidates(fleet, dockFloorCap, canStackProducts, minLoadedH);
+  const dockGrid = truckFloorGrid(dockTruck.widthMM, dockTruck.depthMM, palletW, palletD);
+  const dockFloorCap = dockGrid.cols * dockGrid.rows;
+  let candidates = buildTruckCandidates(fleet, dockFloorCap, canStackProducts, repLoadedH, palletW, palletD);
   if (candidates.length === 0) {
     // フリート未登録などの保険：ドックトラック単体を候補に
-    const floorCap = dockTruck.cols * dockTruck.rows;
-    const canStack = canStackProducts && minLoadedH * 2 <= (dockTruck.heightMM ?? 2300);
-    candidates = [{ type: dockTruck, floorCap, eff: Math.max(dockTruck.maxPallets, canStack ? floorCap * 2 : floorCap) }];
+    const floorCap = dockFloorCap;
+    const eff = floorCap * maxTiers(dockTruck.heightMM ?? 2300, repLoadedH, canStackProducts);
+    candidates = [{ type: dockTruck, floorCap, eff }];
   }
   const selected = selectTrucksForPallets(totalP, candidates);
 
@@ -377,10 +407,14 @@ export function calcWarehousePlan(
 
   // 念のため：選定容量が不足して積み残しがあれば最大候補で追加（重量制約で台数が増えた場合もここで吸収）
   const biggest = [...candidates].sort((a, b) => b.eff - a.eff)[0];
-  while (qi < queue.length) {
-    const r = fillOneTruck(biggest.eff, biggest.type.maxWeightKg);
+  // eff=0（パレットが内寸より大きい等の異常データ）でも積み残しを失わないよう最低1枚/台は積む
+  const fallbackCap = Math.max(1, biggest.eff);
+  const fallbackCand: TruckCandidate = { ...biggest, eff: fallbackCap };
+  let guard = 0;
+  while (qi < queue.length && guard++ < queue.length + 5) {
+    const r = fillOneTruck(fallbackCap, biggest.type.maxWeightKg);
     if (r.truckItems.length === 0) break;
-    pushTruck(biggest, r);
+    pushTruck(fallbackCand, r);
   }
 
   const totalPallets = trucks.reduce((s, t) => s + t.totalPallets, 0);
@@ -579,12 +613,11 @@ export function fillRate(plan: WarehousePlan, maxPallets?: number): number {
 }
 
 /**
- * 2段積みレイアウトを計算する（視覚化用）
- * TruckLoad の items を rows×cols の2D グリッド（床+上段）に配置する
- * - 前方（row=0）から後方（row=rows-1）へ順に床を埋める
- * - 床パレットの高さ + 上段パレットの高さ ≤ 荷室高さ の場合に上段配置
- * - orderNum は床面を先に振り、その後上段に連番
- * - 積載高さはパレット型の loadedHeightMM を優先し、未設定時は 1200mm
+ * 荷台レイアウトを計算する（視覚化用・N段対応）
+ * - 床グリッド(cols×rows)は荷台内寸÷パレット寸法（積載製品の最大フットプリント）で自動算出
+ * - 段は下から積む。tier>0 は「直下のパレットが上積み可」かつ「積み上げ高さ＋当該パレット高 ≤ 荷室高」のときのみ
+ * - 高さが許す限り段数無制限（2段限定なし）
+ * - orderNum は下段→上段、前→後、左→右の順に連番（積込順）
  */
 export function calcStackingLayout(
   load: TruckLoad,
@@ -592,74 +625,59 @@ export function calcStackingLayout(
   products: Product[],
   palletTypes: PalletType[] = [],
 ): TruckLayout {
-  const { cols, rows, heightMM: truckH } = truckType;
-  const TRUCK_H = truckH ?? 2300;
-
-  // パレット型コード → loadedHeightMM マップ
+  const TRUCK_H = truckType.heightMM ?? 2300;
   const palletTypeMap = Object.fromEntries(palletTypes.map((pt) => [pt.code, pt]));
-
-  // 製品コード → 積載高さ マップ（パレット型の loadedHeightMM を優先）
-  const heightMap: Record<string, number> = {};
-  for (const p of products) {
-    const pt = palletTypeMap[p.palletType];
-    heightMap[p.code] = pt?.loadedHeightMM ?? 1200;
-  }
-
-  // 製品コード → スタッキングフラグ マップ
   const productMap = Object.fromEntries(products.map((p) => [p.code, p]));
 
-  // 展開キュー（パレット1枚ずつ）
+  const heightOf = (code: string) => palletTypeMap[productMap[code]?.palletType ?? '']?.loadedHeightMM ?? 1200;
+
+  // 床グリッド：この積載に含まれる製品のパレット最大フットプリントから算出
+  const loadedProds = load.items.map((it) => productMap[it.productCode]).filter(Boolean) as Product[];
+  const palletW = loadedProds.length > 0 ? Math.max(...loadedProds.map((p) => palletTypeMap[p.palletType]?.widthMM ?? 1100)) : 1100;
+  const palletD = loadedProds.length > 0 ? Math.max(...loadedProds.map((p) => palletTypeMap[p.palletType]?.depthMM ?? 1100)) : 1100;
+  const grid = truckFloorGrid(truckType.widthMM, truckType.depthMM, palletW, palletD);
+  const cols = Math.max(1, grid.cols);
+  const rows = Math.max(1, grid.rows);
+
+  // 展開キュー（パレット1枚ずつ、積込順）
   const queue: TruckSlotItem[] = [];
-  let orderNum = 1;
   for (const item of load.items) {
-    const h = heightMap[item.productCode] ?? 1200;
-    const qtyPerPallet = item.capacityPerPallet;
+    const h = heightOf(item.productCode);
     for (let i = 0; i < item.pallets; i++) {
-      queue.push({
-        productCode: item.productCode,
-        qty: qtyPerPallet,
-        capacityPerPallet: qtyPerPallet,
-        loadedHeightMM: h,
-        orderNum: orderNum++,
-      });
+      queue.push({ productCode: item.productCode, qty: item.capacityPerPallet, capacityPerPallet: item.capacityPerPallet, loadedHeightMM: h, orderNum: 0 });
     }
   }
 
-  // 初期化: floor[row][col], upper[row][col]
-  const floor: (TruckSlotItem | null)[][] = Array.from({ length: rows }, () => Array(cols).fill(null));
-  const upper: (TruckSlotItem | null)[][] = Array.from({ length: rows }, () => Array(cols).fill(null));
-
-  // Phase 1: 床面を前→後、左→右の順に埋める
-  outer1: for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      if (queue.length === 0) break outer1;
-      floor[row][col] = queue.shift()!;
-    }
-  }
-
-  // Phase 2: 上段に積めるか確認して埋める（床面と同順）
-  outer2: for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      if (queue.length === 0) break outer2;
-      const fp = floor[row][col];
-      if (!fp) continue; // 床が空 → 上段も不可
-      // 下段製品の「上積み可否」チェック（この製品の上に荷を積めるか）
-      const floorProd = productMap[fp.productCode];
-      if (floorProd?.allowStackOnTop === false) continue;
-      // 高さが許す候補を上段へ（上積み可否は下段側の条件のみで判定）
-      let placed = false;
-      for (let qi = 0; qi < queue.length; qi++) {
-        const candidate = queue[qi];
-        if (fp.loadedHeightMM + candidate.loadedHeightMM > TRUCK_H) continue;
-        // 条件を満たす候補を上段に配置
-        upper[row][col] = { ...candidate, orderNum: orderNum++ };
-        queue.splice(qi, 1);
-        placed = true;
-        break;
+  const layers: (TruckSlotItem | null)[][][] = [];
+  const stackH: number[][] = Array.from({ length: rows }, () => Array(cols).fill(0)); // 各(row,col)の積み上げ高さ
+  let orderNum = 1;
+  let tier = 0;
+  while (queue.length > 0 && tier < 50) {
+    const layer: (TruckSlotItem | null)[][] = Array.from({ length: rows }, () => Array(cols).fill(null));
+    let placed = 0;
+    for (let row = 0; row < rows && queue.length > 0; row++) {
+      for (let col = 0; col < cols && queue.length > 0; col++) {
+        if (tier > 0) {
+          const below = layers[tier - 1][row][col];
+          if (!below) continue;                                   // 直下が空
+          if (productMap[below.productCode]?.allowStackOnTop === false) continue; // 上積み不可
+        }
+        // この高さに収まる最初のパレットを探して置く（混載高さ差に対応）
+        let qi = -1;
+        for (let q = 0; q < queue.length; q++) {
+          if (stackH[row][col] + queue[q].loadedHeightMM <= TRUCK_H) { qi = q; break; }
+        }
+        if (qi < 0) continue;
+        const item = queue.splice(qi, 1)[0];
+        layer[row][col] = { ...item, orderNum: orderNum++ };
+        stackH[row][col] += item.loadedHeightMM;
+        placed++;
       }
-      if (!placed && queue.length === 0) break outer2;
     }
+    if (placed === 0) break; // この段に1枚も置けない → 終了
+    layers.push(layer);
+    tier++;
   }
 
-  return { cols, rows, truckHeightMM: TRUCK_H, floor, upper };
+  return { cols, rows, truckHeightMM: TRUCK_H, tierCount: layers.length, layers };
 }
