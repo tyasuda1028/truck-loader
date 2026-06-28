@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
-import type { Factory, Product, Warehouse, PalletType, CalcSettings } from '@/lib/types';
+import type { Factory, Location, Product, Warehouse, PalletType, CalcSettings } from '@/lib/types';
 import { getCalcSettings, saveCalcSettings } from '@/lib/appSettings';
 import { parseProductsCSV, generateProductsTemplate, downloadCSV } from '@/lib/csv';
 import { buildEquipmentColorMap, buildProductColors, PRODUCT_PALETTE } from '@/lib/productColors';
@@ -12,16 +12,15 @@ import { toast } from '@/components/Toast';
 import { useDemo, notifyDemoBlocked } from '@/lib/demo';
 import clsx from 'clsx';
 
-type Tab = 'products' | 'warehouses' | 'pallets' | 'trucks' | 'factories' | 'operating' | 'calc';
+type Tab = 'products' | 'locations' | 'pallets' | 'trucks' | 'operating' | 'calc';
 
 export default function SettingsPage() {
   const {
-    factories, products, warehouses, truckTypes, palletTypes,
+    locations, factories, products, warehouses, truckTypes, palletTypes,
     operatingDays, setOperatingDay,
     nonWorkingDates, toggleNonWorkingDate,
-    addFactory, updateFactory, removeFactory,
+    addLocation, updateLocation, removeLocation,
     addProduct, updateProduct, removeProduct,
-    addWarehouse, updateWarehouse, removeWarehouse,
     addTruckType, updateTruckType, removeTruckType,
     addPalletType, updatePalletType, removePalletType,
     upsertProducts,
@@ -86,9 +85,8 @@ export default function SettingsPage() {
     }
   }, []);
 
-  const [editingFactory, setEditingFactory] = useState<Factory | null>(null);
+  const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null);
   const [editingPallet, setEditingPallet] = useState<PalletType | null>(null);
   const [editingTruck, setEditingTruck] = useState<import('@/lib/types').TruckType | null>(null);
   const [truckOpError, setTruckOpError] = useState<string | null>(null);
@@ -108,12 +106,9 @@ export default function SettingsPage() {
     allowStackOnTop: true,
   });
 
-  // 工場の新規追加用空テンプレート
-  const newFactory = (): Factory => ({ code: '', name: '' });
-
-  // 拠点の新規追加用空テンプレート
-  const newWarehouse = (): Warehouse => ({
-    code: '', name: '', truckType: 'T06', maxPallets: 12,
+  // 場所マスターの新規追加用空テンプレート（既定=出荷先）
+  const newLocation = (): Location => ({
+    code: '', name: '', role: 'warehouse', truckType: 'T06',
   });
 
   // パレット型の新規追加用空テンプレート
@@ -134,12 +129,17 @@ export default function SettingsPage() {
     setEditingTruck(null);
   };
 
-  const handleSaveFactory = () => {
-    if (!editingFactory || !editingFactory.code.trim() || !editingFactory.name.trim()) return;
-    const exists = factories.some((f) => f.code === editingFactory.code);
-    if (exists) updateFactory(editingFactory);
-    else addFactory(editingFactory);
-    setEditingFactory(null);
+  const handleSaveLocation = () => {
+    if (!editingLocation || !editingLocation.code.trim() || !editingLocation.name.trim()) return;
+    // 出荷先(warehouse/both)はドックトラック必須
+    const needsTruck = editingLocation.role === 'warehouse' || editingLocation.role === 'both';
+    const loc: Location = needsTruck
+      ? editingLocation
+      : { ...editingLocation, truckType: undefined, priority: undefined, leadTimeDays: undefined };
+    const exists = locations.some((l) => l.code === loc.code);
+    if (exists) updateLocation(loc);
+    else addLocation(loc);
+    setEditingLocation(null);
   };
 
   const [productSaving, setProductSaving] = useState(false);
@@ -190,14 +190,6 @@ export default function SettingsPage() {
       const msg = err instanceof Error ? err.message : String(err);
       setProductOpError(`削除に失敗しました: ${msg}`);
     }
-  };
-
-  const handleSaveWarehouse = () => {
-    if (!editingWarehouse || !editingWarehouse.code.trim() || !editingWarehouse.name.trim()) return;
-    const exists = warehouses.some((w) => w.code === editingWarehouse.code);
-    if (exists) updateWarehouse(editingWarehouse);
-    else addWarehouse(editingWarehouse);
-    setEditingWarehouse(null);
   };
 
   const handleSavePallet = () => {
@@ -268,10 +260,9 @@ export default function SettingsPage() {
       <div className="flex gap-1 mb-4 border-b border-slate-200">
         {([
           { key: 'products',   label: '📦 製品マスター' },
-          { key: 'warehouses', label: '🏭 拠点マスター' },
+          { key: 'locations',  label: '📍 場所マスター' },
           { key: 'pallets',    label: '🪵 パレット型' },
           { key: 'trucks',     label: '🚚 トラックマスター' },
-          { key: 'factories',  label: '🏭 工場マスター' },
           { key: 'operating',  label: '📅 稼働日マスター' },
           { key: 'calc',       label: '⚖️ 計算設定' },
         ] as { key: Tab; label: string }[]).map(({ key, label }) => (
@@ -294,15 +285,15 @@ export default function SettingsPage() {
       {tab === 'calc' && <CalcSettingsPanel />}
 
       {/* ── 工場マスター ── */}
-      {tab === 'factories' && (
+      {tab === 'locations' && (
         <div>
           {!demo && (
             <div className="flex justify-end mb-3">
               <button
-                onClick={() => setEditingFactory(newFactory())}
+                onClick={() => setEditingLocation(newLocation())}
                 className="text-sm px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
               >
-                + 工場を追加
+                + 場所を追加
               </button>
             </div>
           )}
@@ -311,50 +302,54 @@ export default function SettingsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 text-xs text-slate-500">
-                  <th className="px-4 py-2.5 text-left font-semibold">工場コード</th>
-                  <th className="px-4 py-2.5 text-left font-semibold">工場名</th>
+                  <th className="px-4 py-2.5 text-left font-semibold">コード</th>
+                  <th className="px-4 py-2.5 text-left font-semibold">名称</th>
+                  <th className="px-4 py-2.5 text-left font-semibold">役割</th>
+                  <th className="px-4 py-2.5 text-left font-semibold">ドック車種</th>
                   <th className="px-4 py-2.5 text-left font-semibold">製品数</th>
                   <th className="px-4 py-2.5 text-right font-semibold">操作</th>
                 </tr>
               </thead>
               <tbody>
-                {factories.map((f) => {
-                  const productCount = products.filter(
-                    (p) => (p.factoryCode ?? 'F001') === f.code,
-                  ).length;
+                {locations.map((l) => {
+                  const isFactory = l.role === 'factory' || l.role === 'both';
+                  const isWarehouse = l.role === 'warehouse' || l.role === 'both';
+                  const productCount = isFactory
+                    ? products.filter((p) => (p.factoryCode ?? 'F001') === l.code).length
+                    : 0;
+                  const roleLabel = l.role === 'both' ? '生産元＋出荷先' : l.role === 'factory' ? '生産元' : '出荷先';
+                  const roleCls = l.role === 'both' ? 'bg-purple-100 text-purple-700' : l.role === 'factory' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700';
                   return (
-                    <tr key={f.code} className="border-t border-slate-100 hover:bg-slate-50">
+                    <tr key={l.code} className="border-t border-slate-100 hover:bg-slate-50">
                       <td className="px-4 py-2">
-                        <span className="font-mono text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">
-                          {f.code}
-                        </span>
+                        <span className="font-mono text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded">{l.code}</span>
                       </td>
-                      <td className="px-4 py-2 font-medium">{f.name}</td>
+                      <td className="px-4 py-2 font-medium">{l.name}</td>
+                      <td className="px-4 py-2">
+                        <span className={clsx('text-xs px-2 py-0.5 rounded-full', roleCls)}>{roleLabel}</span>
+                      </td>
                       <td className="px-4 py-2 text-slate-500 text-xs">
-                        {productCount > 0 ? (
-                          <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
-                            {productCount}製品
-                          </span>
-                        ) : (
-                          <span className="text-slate-300">未割り当て</span>
-                        )}
+                        {isWarehouse ? (truckTypes.find((t) => t.code === l.truckType)?.name ?? l.truckType ?? '—') : '—'}
+                      </td>
+                      <td className="px-4 py-2 text-slate-500 text-xs">
+                        {isFactory ? (productCount > 0 ? `${productCount}製品` : '未割り当て') : '—'}
                       </td>
                       <td className="px-4 py-2 text-right">
                         <button
-                          onClick={() => setEditingFactory({ ...f })}
+                          onClick={() => setEditingLocation({ ...l })}
                           className="text-xs text-brand-600 hover:underline mr-3"
                         >
                           編集
                         </button>
                         <button
                           onClick={() => {
-                            if (productCount > 0) {
-                              alert(`「${f.name}」には ${productCount} 製品が割り当てられているため削除できません。`);
+                            if (isFactory && productCount > 0) {
+                              alert(`「${l.name}」には ${productCount} 製品が割り当てられているため削除できません。`);
                               return;
                             }
-                            if (!window.confirm(`工場「${f.name}」を削除します。よろしいですか？`)) return;
-                            removeFactory(f.code);
-                            toast(`工場「${f.name}」を削除しました`);
+                            if (!window.confirm(`場所「${l.name}」を削除します。よろしいですか？`)) return;
+                            removeLocation(l.code);
+                            toast(`場所「${l.name}」を削除しました`);
                           }}
                           className="text-xs text-red-400 hover:underline"
                         >
@@ -364,21 +359,25 @@ export default function SettingsPage() {
                     </tr>
                   );
                 })}
+                {locations.length === 0 && (
+                  <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-400 text-xs">場所が未登録です。「+ 場所を追加」から登録してください。</td></tr>
+                )}
               </tbody>
             </table>
           </div>
 
           <p className="text-xs text-slate-400 mt-3">
-            ※ 工場は出荷スケジュールと積載計画の工場別表示に使用されます。製品が割り当てられている工場は削除できません。
+            ※ 工場（生産元）と物流拠点（出荷先）を1つの場所マスターで管理します。役割で生産・出荷を区別し、両方を兼ねる場所は「生産元＋出荷先」を選びます。製品が割り当てられた生産元は削除できません。
           </p>
 
-          {editingFactory && (
-            <FactoryModal
-              factory={editingFactory}
-              onChange={setEditingFactory}
-              onSave={handleSaveFactory}
-              onCancel={() => setEditingFactory(null)}
-              isNew={!factories.some((f) => f.code === editingFactory.code)}
+          {editingLocation && (
+            <LocationModal
+              location={editingLocation}
+              truckTypes={truckTypes}
+              onChange={setEditingLocation}
+              onSave={handleSaveLocation}
+              onCancel={() => setEditingLocation(null)}
+              isNew={!locations.some((l) => l.code === editingLocation.code)}
             />
           )}
         </div>
@@ -864,80 +863,6 @@ export default function SettingsPage() {
       )}
 
       {/* ── 拠点マスター ── */}
-      {tab === 'warehouses' && (
-        <div>
-          {!demo && (
-            <div className="flex justify-end mb-3">
-              <button
-                onClick={() => setEditingWarehouse(newWarehouse())}
-                className="text-sm px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
-              >
-                + 拠点を追加
-              </button>
-            </div>
-          )}
-
-          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 text-xs text-slate-500">
-                  <th className="px-4 py-2.5 text-left font-semibold">拠点コード</th>
-                  <th className="px-4 py-2.5 text-left font-semibold">拠点名</th>
-                  <th className="px-4 py-2.5 text-left font-semibold">車種</th>
-                  <th className="px-4 py-2.5 text-right font-semibold">最大P数</th>
-                  <th className="px-4 py-2.5 text-right font-semibold">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {warehouses.map((w) => {
-                  const truck = truckTypes.find((t) => t.code === w.truckType);
-                  return (
-                    <tr key={w.code} className="border-t border-slate-100 hover:bg-slate-50">
-                      <td className="px-4 py-2 font-mono text-xs text-slate-500">{w.code}</td>
-                      <td className="px-4 py-2 font-medium">{w.name}</td>
-                      <td className="px-4 py-2 text-slate-500 text-xs">
-                        {truck?.name ?? w.truckType}
-                      </td>
-                      <td className="px-4 py-2 text-right">{w.maxPallets}枚</td>
-                      <td className="px-4 py-2 text-right">
-                        <button
-                          onClick={() => setEditingWarehouse({ ...w })}
-                          className="text-xs text-brand-600 hover:underline mr-3"
-                        >
-                          編集
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (!window.confirm(`拠点「${w.name}」を削除します。基準在庫数などこの拠点の設定も使われなくなります。よろしいですか？`)) return;
-                            removeWarehouse(w.code);
-                            toast(`拠点「${w.name}」を削除しました`);
-                          }}
-                          className="text-xs text-red-400 hover:underline"
-                        >
-                          削除
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* 拠点編集モーダル */}
-          {editingWarehouse && (
-            <WarehouseModal
-              warehouse={editingWarehouse}
-              truckTypes={truckTypes}
-              onChange={setEditingWarehouse}
-              onSave={handleSaveWarehouse}
-              onCancel={() => setEditingWarehouse(null)}
-              isNew={!warehouses.some((w) => w.code === editingWarehouse.code)}
-            />
-          )}
-        </div>
-      )}
-
       {/* ── パレット型マスター ── */}
       {tab === 'pallets' && (
         <div>
@@ -1509,37 +1434,86 @@ function TruckModal({
 }
 
 // ─── 工場モーダル ──────────────────────────────────────────────────────
-function FactoryModal({
-  factory, onChange, onSave, onCancel, isNew,
+function LocationModal({
+  location, truckTypes, onChange, onSave, onCancel, isNew,
 }: {
-  factory: Factory;
-  onChange: (f: Factory) => void;
+  location: Location;
+  truckTypes: import('@/lib/types').TruckType[];
+  onChange: (l: Location) => void;
   onSave: () => void;
   onCancel: () => void;
   isNew: boolean;
 }) {
+  const isWarehouse = location.role === 'warehouse' || location.role === 'both';
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl p-6 shadow-xl w-full max-w-md mx-4">
-        <h3 className="font-bold text-slate-800 mb-4">{isNew ? '工場を追加' : '工場を編集'}</h3>
+        <h3 className="font-bold text-slate-800 mb-4">{isNew ? '場所を追加' : '場所を編集'}</h3>
         <div className="flex flex-col gap-3">
-          <Field label="工場コード（例: F001）">
+          <Field label="コード（例: F001 / W001）">
             <input
               className={INPUT_CLASS}
-              value={factory.code}
-              onChange={(e) => onChange({ ...factory, code: e.target.value.toUpperCase() })}
+              value={location.code}
+              onChange={(e) => onChange({ ...location, code: e.target.value.toUpperCase() })}
               disabled={!isNew}
-              placeholder="例: F001"
+              placeholder="例: W001"
             />
           </Field>
-          <Field label="工場名">
+          <Field label="名称">
             <input
               className={INPUT_CLASS}
-              value={factory.name}
-              onChange={(e) => onChange({ ...factory, name: e.target.value })}
-              placeholder="例: 東京本社工場"
+              value={location.name}
+              onChange={(e) => onChange({ ...location, name: e.target.value })}
+              placeholder="例: 東京物流センター"
             />
           </Field>
+          <Field label="役割" hint="生産元=製品を作る工場 / 出荷先=配送する拠点 / 両方を兼ねる場合は「生産元＋出荷先」">
+            <select
+              className={INPUT_CLASS}
+              value={location.role}
+              onChange={(e) => onChange({ ...location, role: e.target.value as Location['role'] })}
+            >
+              <option value="warehouse">出荷先（物流拠点）</option>
+              <option value="factory">生産元（工場）</option>
+              <option value="both">生産元＋出荷先</option>
+            </select>
+          </Field>
+          {isWarehouse && (
+            <>
+              <Field label="ドック車種" hint="この拠点へ配送するトラック種別（積載効率は内寸から自動算出）">
+                <select
+                  className={INPUT_CLASS}
+                  value={location.truckType ?? ''}
+                  onChange={(e) => onChange({ ...location, truckType: e.target.value })}
+                >
+                  <option value="">選択してください</option>
+                  {truckTypes.map((t) => (
+                    <option key={t.code} value={t.code}>{t.code} - {t.name}</option>
+                  ))}
+                </select>
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="配分優先度" hint="小さいほど優先（配分が「優先度順」のとき先に満たす）。空欄は最後尾">
+                  <input
+                    type="number" min={1} step={1}
+                    className={INPUT_CLASS}
+                    value={location.priority ?? ''}
+                    onChange={(e) => onChange({ ...location, priority: e.target.value === '' ? undefined : (parseInt(e.target.value, 10) || undefined) })}
+                    placeholder="例: 1"
+                  />
+                </Field>
+                <Field label="リードタイム（日）" hint="基準在庫が「自動」のとき使用（到着までの日数）">
+                  <input
+                    type="number" min={0} step={1}
+                    className={INPUT_CLASS}
+                    value={location.leadTimeDays ?? ''}
+                    onChange={(e) => onChange({ ...location, leadTimeDays: e.target.value === '' ? undefined : (parseInt(e.target.value, 10) || 0) })}
+                    placeholder="例: 2"
+                  />
+                </Field>
+              </div>
+            </>
+          )}
         </div>
         <div className="flex gap-2 justify-end mt-6">
           <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
@@ -1789,83 +1763,6 @@ function ProductModal({
 }
 
 // ─── 拠点モーダル ──────────────────────────────────────────────────────
-function WarehouseModal({
-  warehouse, truckTypes, onChange, onSave, onCancel, isNew,
-}: {
-  warehouse: Warehouse;
-  truckTypes: import('@/lib/types').TruckType[];
-  onChange: (w: Warehouse) => void;
-  onSave: () => void;
-  onCancel: () => void;
-  isNew: boolean;
-}) {
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl p-6 shadow-xl w-full max-w-md mx-4">
-        <h3 className="font-bold text-slate-800 mb-4">{isNew ? '拠点を追加' : '拠点を編集'}</h3>
-        <div className="flex flex-col gap-3">
-          <Field label="拠点コード">
-            <input
-              className={INPUT_CLASS}
-              value={warehouse.code}
-              onChange={(e) => onChange({ ...warehouse, code: e.target.value })}
-              disabled={!isNew}
-              placeholder="例: W001"
-            />
-          </Field>
-          <Field label="拠点名">
-            <input
-              className={INPUT_CLASS}
-              value={warehouse.name}
-              onChange={(e) => onChange({ ...warehouse, name: e.target.value })}
-              placeholder="例: 東京営業所"
-            />
-          </Field>
-          <Field label="使用車種">
-            <select
-              className={INPUT_CLASS}
-              value={warehouse.truckType}
-              onChange={(e) => onChange({ ...warehouse, truckType: e.target.value })}
-            >
-              {truckTypes.map((t) => (
-                <option key={t.code} value={t.code}>{t.code} - {t.name}</option>
-              ))}
-            </select>
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="配分優先度" hint="小さいほど優先（配分が「優先度順」のとき先に満たす）。空欄は最後尾">
-              <input
-                type="number" min={1} step={1}
-                className={INPUT_CLASS}
-                value={warehouse.priority ?? ''}
-                onChange={(e) => onChange({ ...warehouse, priority: e.target.value === '' ? undefined : (parseInt(e.target.value, 10) || undefined) })}
-                placeholder="例: 1"
-              />
-            </Field>
-            <Field label="リードタイム（日）" hint="基準在庫が「自動」のとき使用（到着までの日数）">
-              <input
-                type="number" min={0} step={1}
-                className={INPUT_CLASS}
-                value={warehouse.leadTimeDays ?? ''}
-                onChange={(e) => onChange({ ...warehouse, leadTimeDays: e.target.value === '' ? undefined : (parseInt(e.target.value, 10) || 0) })}
-                placeholder="例: 2"
-              />
-            </Field>
-          </div>
-        </div>
-        <div className="flex gap-2 justify-end mt-6">
-          <button onClick={onCancel} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
-            キャンセル
-          </button>
-          <button onClick={onSave} className="px-4 py-2 text-sm text-white bg-brand-600 rounded-lg hover:bg-brand-700">
-            保存
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── 計算設定パネル ────────────────────────────────────────────────────
 function CalcSettingsPanel() {
   const [s, setS] = useState<CalcSettings>(() => getCalcSettings());

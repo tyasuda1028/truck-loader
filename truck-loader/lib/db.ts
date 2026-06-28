@@ -224,27 +224,26 @@ export async function deduplicateProducts(): Promise<number> {
 export async function loadWarehouses(): Promise<Warehouse[]> {
   const cid = await getCompanyId();
   const rows = await sql`
-    SELECT code, name, truck_type, max_pallets
+    SELECT code, name, truck_type
     FROM warehouses WHERE company_id = ${cid} ORDER BY code
   `;
   return rows.map((r) => ({
     code: r.code as string,
     name: r.name as string,
     truckType: r.truck_type as string,
-    maxPallets: r.max_pallets as number,
   }));
 }
 
 export async function upsertWarehouse(w: Warehouse) {
   const cid = await getCompanyId();
-  // "group"（旧・東西区分）列は廃止。DB列は NOT NULL のため空文字で互換維持。
+  // "group"（旧・東西区分）・max_pallets（旧・最大P数）列は廃止したが DB列は NOT NULL のため
+  // 互換値（''／0）を補う。容量はトラック内寸とパレット寸法から積載計算時に自動算出する。
   await sql`
     INSERT INTO warehouses (company_id, code, name, "group", truck_type, max_pallets)
-    VALUES (${cid}, ${w.code}, ${w.name}, '', ${w.truckType}, ${w.maxPallets})
+    VALUES (${cid}, ${w.code}, ${w.name}, '', ${w.truckType}, 0)
     ON CONFLICT (company_id, code) DO UPDATE SET
       name        = EXCLUDED.name,
-      truck_type  = EXCLUDED.truck_type,
-      max_pallets = EXCLUDED.max_pallets
+      truck_type  = EXCLUDED.truck_type
   `;
 }
 

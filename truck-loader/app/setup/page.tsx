@@ -21,7 +21,7 @@ export default function SetupWizard() {
 
   // 各ステップの追加フォームのローカル状態
   const [fac, setFac] = useState({ code: '', name: '' });
-  const [wh, setWh] = useState({ code: '', name: '', truckType: '', maxPallets: 12 });
+  const [wh, setWh] = useState({ code: '', name: '', truckType: '' });
   const [prod, setProd] = useState({ code: '', name: '', cap: 0, palletType: '', factoryCode: '' });
 
   const isEmpty = s.factories.length === 0 && s.warehouses.length === 0 && s.products.length === 0;
@@ -118,7 +118,7 @@ export default function SetupWizard() {
           <StepShell title="工場を登録" hint="製品を製造する工場（出荷元）を登録します。">
             <ItemList
               items={s.factories.map((f) => ({ id: f.code, label: `${f.code}　${f.name}` }))}
-              onRemove={(id) => s.removeFactory(id)}
+              onRemove={(id) => s.removeLocation(id)}
             />
             <div className="mt-3 flex flex-wrap items-end gap-2">
               <Field label="工場コード"><input value={fac.code} onChange={(e) => setFac({ ...fac, code: e.target.value })} placeholder="F001" className={inputCls} /></Field>
@@ -126,7 +126,7 @@ export default function SetupWizard() {
               <button
                 type="button"
                 disabled={!fac.code.trim() || !fac.name.trim()}
-                onClick={() => { s.addFactory({ code: fac.code.trim(), name: fac.name.trim() }); setFac({ code: '', name: '' }); }}
+                onClick={() => { s.addLocation({ code: fac.code.trim(), name: fac.name.trim(), role: 'factory' }); setFac({ code: '', name: '' }); }}
                 className={addBtnCls(!fac.code.trim() || !fac.name.trim())}
               >＋ 追加</button>
             </div>
@@ -137,23 +137,22 @@ export default function SetupWizard() {
         {step === 2 && (
           <StepShell title="拠点（物流センター）を登録" hint="製品を届ける配送先。『受入可能な最大トラック』はドック制約として使われ、エンジンはそれ以下で最適な車種を選びます。">
             <ItemList
-              items={s.warehouses.map((w) => ({ id: w.code, label: `${w.code}　${w.name}（${s.truckTypes.find((t) => t.code === w.truckType)?.name ?? w.truckType}・最大${w.maxPallets}）` }))}
-              onRemove={(id) => s.removeWarehouse(id)}
+              items={s.warehouses.map((w) => ({ id: w.code, label: `${w.code}　${w.name}（${s.truckTypes.find((t) => t.code === w.truckType)?.name ?? w.truckType}）` }))}
+              onRemove={(id) => s.removeLocation(id)}
             />
             <div className="mt-3 flex flex-wrap items-end gap-2">
               <Field label="拠点コード"><input value={wh.code} onChange={(e) => setWh({ ...wh, code: e.target.value })} placeholder="W001" className={inputCls} /></Field>
               <Field label="拠点名"><input value={wh.name} onChange={(e) => setWh({ ...wh, name: e.target.value })} placeholder="東京物流センター" className={clsx(inputCls, 'w-44')} /></Field>
-              <Field label="最大トラック">
+              <Field label="ドック車種">
                 <select value={wh.truckType} onChange={(e) => setWh({ ...wh, truckType: e.target.value })} className={inputCls}>
                   <option value="">選択</option>
                   {s.truckTypes.map((t) => <option key={t.code} value={t.code}>{t.name}（{t.widthMM}×{t.depthMM}mm）</option>)}
                 </select>
               </Field>
-              <Field label="最大パレット"><input type="number" value={wh.maxPallets} onChange={(e) => setWh({ ...wh, maxPallets: Number(e.target.value) || 0 })} className={clsx(inputCls, 'w-24')} /></Field>
               <button
                 type="button"
                 disabled={!wh.code.trim() || !wh.name.trim() || !wh.truckType}
-                onClick={() => { s.addWarehouse({ code: wh.code.trim(), name: wh.name.trim(), truckType: wh.truckType, maxPallets: wh.maxPallets || 12 }); setWh({ code: '', name: '', truckType: '', maxPallets: 12 }); }}
+                onClick={() => { s.addLocation({ code: wh.code.trim(), name: wh.name.trim(), role: 'warehouse', truckType: wh.truckType }); setWh({ code: '', name: '', truckType: '' }); }}
                 className={addBtnCls(!wh.code.trim() || !wh.name.trim() || !wh.truckType)}
               >＋ 追加</button>
             </div>

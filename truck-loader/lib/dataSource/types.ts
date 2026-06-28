@@ -11,7 +11,7 @@
  * store 側の呼び出し（db.xxx → ds.xxx）を機械的に置換できる。
  */
 import type {
-  Factory, Product, Warehouse, TruckType, PalletType,
+  Location, Product, TruckType, PalletType,
   ProductionPlan, DailyProductionPlan, BaselineStock,
   InventoryStock, LocationStock, WeeklyShippingSchedule, InTransitStock, PlannedSales,
   OperatingDays, SendQtyManual, NonWorkingDates,
@@ -22,9 +22,8 @@ export interface DataSource {
   readonly kind: 'server' | 'local';
 
   // ─── 一括ロード ──────────────────────────────────────────
-  loadFactories(): Promise<Factory[]>;
+  loadLocations(): Promise<Location[]>;
   loadProducts(): Promise<Product[]>;
-  loadWarehouses(): Promise<Warehouse[]>;
   loadTruckTypes(): Promise<TruckType[]>;
   loadPalletTypes(): Promise<PalletType[]>;
   loadProductionPlan(): Promise<ProductionPlan>;
@@ -39,18 +38,14 @@ export interface DataSource {
   loadPlannedSales(): Promise<PlannedSales>;
   loadSendQtyManual(): Promise<SendQtyManual>;
 
-  // ─── 工場 ────────────────────────────────────────────────
-  upsertFactory(f: Factory): Promise<void>;
-  deleteFactory(code: string): Promise<void>;
+  // ─── 場所マスター（工場・拠点統合）────────────────────────
+  upsertLocation(l: Location): Promise<void>;
+  deleteLocation(code: string): Promise<void>;
 
   // ─── 製品 ────────────────────────────────────────────────
   upsertProduct(p: Product): Promise<void>;
   upsertProducts(products: Product[]): Promise<void>;
   deleteProduct(code: string): Promise<void>;
-
-  // ─── 倉庫 ────────────────────────────────────────────────
-  upsertWarehouse(w: Warehouse): Promise<void>;
-  deleteWarehouse(code: string): Promise<void>;
 
   // ─── トラック種別 ────────────────────────────────────────
   upsertTruckType(t: TruckType): Promise<void>;

@@ -1,5 +1,16 @@
 // ─── マスター型定義 ────────────────────────────────────────────────────
 
+/** 場所マスター（工場・拠点を統合）。役割で生産元/出荷先を区別する。
+ *  factories / warehouses はこの locations から派生させる（lib/location.ts）。 */
+export interface Location {
+  code: string;
+  name: string;
+  role: 'factory' | 'warehouse' | 'both'; // factory=生産元 / warehouse=出荷先 / both=両方
+  truckType?: string;     // 出荷先(warehouse/both)のドックトラック種別コード
+  priority?: number;      // 配分優先度（小さいほど優先）。出荷先で使用
+  leadTimeDays?: number;  // 輸送リードタイム（日）。基準在庫autoモードで使用
+}
+
 export interface Factory {
   code: string;
   name: string;
@@ -21,11 +32,11 @@ export interface Product {
   boxWeightKg?: number;       // 段ボール重量 (kg)
 }
 
+/** 出荷先ビュー（Location role∈{warehouse,both} から派生）。計算エンジンが参照する。 */
 export interface Warehouse {
   code: string;
   name: string;
-  truckType: string; // T01〜T06
-  maxPallets: number;
+  truckType: string; // T01〜T06（ドックトラック）
   priority?: number;      // 配分優先度（小さいほど優先＝先に満たす）。未設定は最後尾扱い。配分モード'priority'で使用
   leadTimeDays?: number;  // 輸送リードタイム（日）。基準在庫'auto'モードで使用
 }

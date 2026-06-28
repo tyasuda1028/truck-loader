@@ -5,15 +5,20 @@
  * 既存挙動と完全に同一。オンライン時・Web版のデフォルト実装。
  */
 import * as db from '@/lib/db';
+import type { Location } from '@/lib/types';
+import { migrateToLocations } from '@/lib/location';
 import type { DataSource } from './types';
 
 export const serverDataSource: DataSource = {
   kind: 'server',
 
   // ─── 一括ロード ──────────────────────────────────────────
-  loadFactories: db.loadFactories,
+  // 場所マスターは Neon の旧 factories/warehouses を統合して返す（サーバー実装は休眠）
+  loadLocations: async () => {
+    const [factories, warehouses] = await Promise.all([db.loadFactories(), db.loadWarehouses()]);
+    return migrateToLocations(factories, warehouses);
+  },
   loadProducts: db.loadProducts,
-  loadWarehouses: db.loadWarehouses,
   loadTruckTypes: db.loadTruckTypes,
   loadPalletTypes: db.loadPalletTypes,
   loadProductionPlan: db.loadProductionPlan,
@@ -28,18 +33,31 @@ export const serverDataSource: DataSource = {
   loadPlannedSales: db.loadPlannedSales,
   loadSendQtyManual: db.loadSendQtyManual,
 
-  // ─── 工場 ────────────────────────────────────────────────
-  upsertFactory: db.upsertFactory,
-  deleteFactory: db.deleteFactory,
+  // ─── 場所マスター（工場・拠点統合）────────────────────────
+  // role に応じて Neon の factories / warehouses 両テーブルへ反映（休眠）
+  upsertLocation: async (l: Location) => {
+    if (l.role === 'factory' || l.role === 'both') {
+      await db.upsertFactory({ code: l.code, name: l.name });
+    } else {
+      await db.deleteFactory(l.code).catch(() => {});
+    }
+    if (l.role === 'warehouse' || l.role === 'both') {
+      await db.upsertWarehouse({ code: l.code, name: l.name, truckType: l.truckType ?? '', priority: l.priority, leadTimeDays: l.leadTimeDays });
+    } else {
+      await db.deleteWarehouse(l.code).catch(() => {});
+    }
+  },
+  deleteLocation: async (code: string) => {
+    await Promise.all([
+      db.deleteFactory(code).catch(() => {}),
+      db.deleteWarehouse(code).catch(() => {}),
+    ]);
+  },
 
   // ─── 製品 ────────────────────────────────────────────────
   upsertProduct: db.upsertProduct,
   upsertProducts: db.upsertProducts,
   deleteProduct: db.deleteProduct,
-
-  // ─── 倉庫 ────────────────────────────────────────────────
-  upsertWarehouse: db.upsertWarehouse,
-  deleteWarehouse: db.deleteWarehouse,
 
   // ─── トラック種別 ────────────────────────────────────────
   upsertTruckType: db.upsertTruckType,

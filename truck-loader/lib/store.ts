@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import type {
-  Factory, Product, Warehouse, TruckType, PalletType,
+  Factory, Location, Product, Warehouse, TruckType, PalletType,
   ProductionPlan, DailyProductionPlan, BaselineStock,
   InventoryStock, LocationStock, WeeklyShippingSchedule, InTransitStock, PlannedSales,
   OperatingDays, SendQtyManual, NonWorkingDates,
 } from './types';
+import { locationsToFactories, locationsToWarehouses } from './location';
 import {
   DEFAULT_TRUCK_TYPES,
   DEFAULT_PALLET_TYPES,
@@ -39,9 +40,10 @@ interface AppState {
   isLoaded: boolean;
 
   // ─── マスター ────────────────────────────────────────────────
-  factories: Factory[];
+  locations: Location[];        // 場所マスター（真実の単一ソース）
+  factories: Factory[];         // locations から派生（生産元ビュー）
   products: Product[];
-  warehouses: Warehouse[];
+  warehouses: Warehouse[];      // locations から派生（出荷先ビュー）
   truckTypes: TruckType[];
   palletTypes: PalletType[];
 
@@ -62,9 +64,9 @@ interface AppState {
   loadFromDB: () => Promise<void>;
   loadSampleData: () => Promise<boolean>;
 
-  addFactory: (f: Factory) => void;
-  updateFactory: (f: Factory) => void;
-  removeFactory: (code: string) => void;
+  addLocation: (l: Location) => void;
+  updateLocation: (l: Location) => void;
+  removeLocation: (code: string) => void;
 
   setShippingDay: (factoryCode: string, warehouseCode: string, dayIndex: number, active: boolean) => void;
   setOperatingDay: (factoryCode: string, dayIndex: number, active: boolean) => void;
@@ -99,10 +101,6 @@ interface AppState {
   removeProduct: (productCode: string) => Promise<void>;
   upsertProducts: (incoming: Product[]) => Promise<void>;
 
-  addWarehouse: (warehouse: Warehouse) => void;
-  updateWarehouse: (warehouse: Warehouse) => void;
-  removeWarehouse: (warehouseCode: string) => void;
-
   addTruckType: (truckType: TruckType) => void;
   updateTruckType: (truckType: TruckType) => void;
   removeTruckType: (code: string) => void;
@@ -116,6 +114,7 @@ interface AppState {
 
 const defaultState = {
   isLoaded: false,
+  locations: [] as Location[],
   factories: [] as Factory[],
   products: [] as Product[],
   warehouses: [] as Warehouse[],
@@ -141,9 +140,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
   loadFromDB: async () => {
     try {
       const [
-        factories,
+        locations,
         products,
-        warehouses,
         truckTypes,
         palletTypes,
         productionPlan,
@@ -158,9 +156,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
         plannedSales,
         sendQtyManual,
       ] = await Promise.all([
-        db.loadFactories(),
+        db.loadLocations(),
         db.loadProducts(),
-        db.loadWarehouses(),
         db.loadTruckTypes(),
         db.loadPalletTypes(),
         db.loadProductionPlan(),
@@ -176,12 +173,14 @@ export const useAppStore = create<AppState>()((set, get) => ({
         db.loadSendQtyManual().catch(() => ({} as SendQtyManual)),
       ]);
 
-      // DBから読み込んだ内容をそのまま使う（テナントが自分で登録）
+      // DBから読み込んだ内容をそのまま使う（テナントが自分で登録）。
+      // factories / warehouses は locations から派生（計算・各ページ用ビュー）。
       set({
         isLoaded: true,
-        factories,
+        locations,
+        factories: locationsToFactories(locations),
+        warehouses: locationsToWarehouses(locations),
         products,
-        warehouses,
         truckTypes,
         palletTypes,
         productionPlan,
@@ -241,23 +240,33 @@ export const useAppStore = create<AppState>()((set, get) => ({
     });
   },
 
-  // ─── 工場 ─────────────────────────────────────────────────
-  addFactory: (f) => {
+  // ─── 場所マスター（工場・拠点を統合）──────────────────────────
+  // locations を真実とし、factories / warehouses は毎回派生し直す。
+  addLocation: (l) => {
     if (blockedByDemo()) return;
-    set((s) => ({ factories: [...s.factories, f] }));
-    db.upsertFactory(f).catch(console.error);
+    set((s) => {
+      const locations = [...s.locations, l];
+      return { locations, factories: locationsToFactories(locations), warehouses: locationsToWarehouses(locations) };
+    });
+    db.upsertLocation(l).catch(console.error);
   },
 
-  updateFactory: (f) => {
+  updateLocation: (l) => {
     if (blockedByDemo()) return;
-    set((s) => ({ factories: s.factories.map((x) => (x.code === f.code ? f : x)) }));
-    db.upsertFactory(f).catch(console.error);
+    set((s) => {
+      const locations = s.locations.map((x) => (x.code === l.code ? l : x));
+      return { locations, factories: locationsToFactories(locations), warehouses: locationsToWarehouses(locations) };
+    });
+    db.upsertLocation(l).catch(console.error);
   },
 
-  removeFactory: (code) => {
+  removeLocation: (code) => {
     if (blockedByDemo()) return;
-    set((s) => ({ factories: s.factories.filter((x) => x.code !== code) }));
-    db.deleteFactory(code).catch(console.error);
+    set((s) => {
+      const locations = s.locations.filter((x) => x.code !== code);
+      return { locations, factories: locationsToFactories(locations), warehouses: locationsToWarehouses(locations) };
+    });
+    db.deleteLocation(code).catch(console.error);
   },
 
   // ─── 出荷スケジュール ──────────────────────────────────────
@@ -474,25 +483,6 @@ export const useAppStore = create<AppState>()((set, get) => ({
       const added = incoming.filter((p) => !existingCodes.has(p.code));
       return { products: [...updated, ...added] };
     });
-  },
-
-  // ─── 拠点 ─────────────────────────────────────────────────
-  addWarehouse: (warehouse) => {
-    if (blockedByDemo()) return;
-    set((s) => ({ warehouses: [...s.warehouses, warehouse] }));
-    db.upsertWarehouse(warehouse).catch(console.error);
-  },
-
-  updateWarehouse: (warehouse) => {
-    if (blockedByDemo()) return;
-    set((s) => ({ warehouses: s.warehouses.map((w) => (w.code === warehouse.code ? warehouse : w)) }));
-    db.upsertWarehouse(warehouse).catch(console.error);
-  },
-
-  removeWarehouse: (warehouseCode) => {
-    if (blockedByDemo()) return;
-    set((s) => ({ warehouses: s.warehouses.filter((w) => w.code !== warehouseCode) }));
-    db.deleteWarehouse(warehouseCode).catch(console.error);
   },
 
   // ─── トラック種別 ─────────────────────────────────────────

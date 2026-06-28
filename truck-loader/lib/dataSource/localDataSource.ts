@@ -12,7 +12,7 @@
 import type { DataSource } from './types';
 import type { SyncMeta, DatasetSnapshot, LocalSyncApi } from '../sync/types';
 import type {
-  Factory, Product, Warehouse, TruckType, PalletType,
+  Factory, Location, Product, Warehouse, TruckType, PalletType,
   ProductionPlan, DailyProductionPlan, BaselineStock,
   InventoryStock, LocationStock, WeeklyShippingSchedule, InTransitStock, PlannedSales,
   OperatingDays, SendQtyManual, NonWorkingDates,
@@ -21,18 +21,23 @@ import {
   DEFAULT_TRUCK_TYPES, DEFAULT_PALLET_TYPES,
 } from '../defaultData';
 import {
-  SAMPLE_FACTORIES, SAMPLE_PRODUCTS, SAMPLE_WAREHOUSES, SAMPLE_PRODUCTION_PLAN,
+  SAMPLE_LOCATIONS, SAMPLE_PRODUCTS, SAMPLE_WAREHOUSES, SAMPLE_PRODUCTION_PLAN,
   SAMPLE_BASELINE_STOCK, SAMPLE_LOCATION_STOCK, SAMPLE_PLANNED_SALES,
   SAMPLE_OPERATING_DAYS, SAMPLE_FACTORY_SCHEDULE,
 } from '../sampleData';
+import { migrateToLocations } from '../location';
 import { idbGet, idbSet } from './idbKv';
 import { assertNotDemo } from '../demo';
 
 const DOC_KEY = 'dataset';
 
 interface LocalDB {
+  /** 場所マスター（真実の単一ソース）。旧 factories/warehouses から冪等移行される。 */
+  locations?: Location[];
+  /** @deprecated 移行元。locations 確定後は参照しない（古いデータの読み込み互換用に残置） */
   factories: Factory[];
   products: Product[];
+  /** @deprecated 移行元。locations 確定後は参照しない */
   warehouses: Warehouse[];
   truckTypes: TruckType[];
   palletTypes: PalletType[];
@@ -53,6 +58,7 @@ interface LocalDB {
 
 function emptyDoc(): LocalDB {
   return {
+    locations: [],
     factories: [],
     products: [],
     warehouses: [],
@@ -165,9 +171,21 @@ class LocalDataSource implements DataSource, LocalSyncApi {
   }
 
   // ─── 一括ロード ──────────────────────────────────────────
-  async loadFactories() { await this.ensureLoaded(); return this.doc.factories; }
+  /** 場所マスターをロード。旧 factories/warehouses しか無い古いデータは冪等移行する。 */
+  async loadLocations() {
+    await this.ensureLoaded();
+    if (!this.doc.locations || this.doc.locations.length === 0) {
+      const migrated = migrateToLocations(this.doc.factories ?? [], this.doc.warehouses ?? [], this.doc.locations);
+      if (migrated.length > 0) {
+        this.doc.locations = migrated;
+        await this.save(); // 移行結果を永続化（次回以降は再移行しない）
+      } else {
+        this.doc.locations = [];
+      }
+    }
+    return this.doc.locations;
+  }
   async loadProducts() { await this.ensureLoaded(); return this.doc.products; }
-  async loadWarehouses() { await this.ensureLoaded(); return this.doc.warehouses; }
   async loadTruckTypes() { await this.ensureLoaded(); return this.doc.truckTypes; }
   async loadPalletTypes() { await this.ensureLoaded(); return this.doc.palletTypes; }
   async loadProductionPlan() { await this.ensureLoaded(); return this.doc.productionPlan; }
@@ -182,17 +200,17 @@ class LocalDataSource implements DataSource, LocalSyncApi {
   async loadPlannedSales() { await this.ensureLoaded(); return this.doc.plannedSales; }
   async loadSendQtyManual() { await this.ensureLoaded(); return this.doc.sendQtyManual; }
 
-  // ─── 工場 ────────────────────────────────────────────────
-  async upsertFactory(f: Factory) {
+  // ─── 場所マスター（工場・拠点統合）────────────────────────
+  async upsertLocation(l: Location) {
     assertNotDemo();
     await this.ensureLoaded();
-    this.doc.factories = upsertByCode(this.doc.factories, f);
+    this.doc.locations = upsertByCode(this.doc.locations ?? [], l);
     return this.persist();
   }
-  async deleteFactory(code: string) {
+  async deleteLocation(code: string) {
     assertNotDemo();
     await this.ensureLoaded();
-    this.doc.factories = this.doc.factories.filter((x) => x.code !== code);
+    this.doc.locations = (this.doc.locations ?? []).filter((x) => x.code !== code);
     return this.persist();
   }
 
@@ -215,20 +233,6 @@ class LocalDataSource implements DataSource, LocalSyncApi {
     assertNotDemo();
     await this.ensureLoaded();
     this.doc.products = this.doc.products.filter((p) => p.code !== code);
-    return this.persist();
-  }
-
-  // ─── 倉庫 ────────────────────────────────────────────────
-  async upsertWarehouse(w: Warehouse) {
-    assertNotDemo();
-    await this.ensureLoaded();
-    this.doc.warehouses = upsertByCode(this.doc.warehouses, w);
-    return this.persist();
-  }
-  async deleteWarehouse(code: string) {
-    assertNotDemo();
-    await this.ensureLoaded();
-    this.doc.warehouses = this.doc.warehouses.filter((w) => w.code !== code);
     return this.persist();
   }
 
@@ -411,9 +415,8 @@ class LocalDataSource implements DataSource, LocalSyncApi {
     // 既存データがあればスキップ（サーバー版と同じ「上書き防止」挙動）
     if (this.doc.products.length > 0) return { seeded: false };
 
-    this.doc.factories = [...SAMPLE_FACTORIES];
+    this.doc.locations = [...SAMPLE_LOCATIONS];
     this.doc.products = [...SAMPLE_PRODUCTS];
-    this.doc.warehouses = [...SAMPLE_WAREHOUSES];
     this.doc.truckTypes = DEFAULT_TRUCK_TYPES;
     this.doc.palletTypes = DEFAULT_PALLET_TYPES;
     this.doc.operatingDays = { ...SAMPLE_OPERATING_DAYS };

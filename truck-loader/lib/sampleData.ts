@@ -1,5 +1,5 @@
 import type {
-  Factory, Product, Warehouse, ProductionPlan,
+  Factory, Location, Product, Warehouse, ProductionPlan,
   BaselineStock, LocationStock, PlannedSales, OperatingDays,
 } from './types';
 
@@ -9,6 +9,18 @@ import type {
 export const SAMPLE_FACTORIES: Factory[] = [
   { code: 'F001', name: '関東工場' },
   { code: 'F002', name: '関西工場' },
+];
+
+/** 場所マスター（工場＝role:factory ／ 物流拠点＝role:warehouse） */
+export const SAMPLE_LOCATIONS: Location[] = [
+  { code: 'F001', name: '関東工場', role: 'factory' },
+  { code: 'F002', name: '関西工場', role: 'factory' },
+  { code: 'W001', name: '札幌物流センター',   role: 'warehouse', truckType: 'T06' },
+  { code: 'W002', name: '仙台営業所',         role: 'warehouse', truckType: 'T05' },
+  { code: 'W003', name: '東京物流センター',   role: 'warehouse', truckType: 'T04' },
+  { code: 'W004', name: '名古屋物流センター', role: 'warehouse', truckType: 'T06' },
+  { code: 'W005', name: '大阪物流センター',   role: 'warehouse', truckType: 'T06' },
+  { code: 'W006', name: '福岡営業所',         role: 'warehouse', truckType: 'T05' },
 ];
 
 export const SAMPLE_PRODUCTS: Product[] = [
@@ -23,12 +35,12 @@ export const SAMPLE_PRODUCTS: Product[] = [
 ];
 
 export const SAMPLE_WAREHOUSES: Warehouse[] = [
-  { code: 'W001', name: '札幌物流センター',   truckType: 'T06', maxPallets: 12 },
-  { code: 'W002', name: '仙台営業所',         truckType: 'T05', maxPallets: 8 },
-  { code: 'W003', name: '東京物流センター',   truckType: 'T04', maxPallets: 16 },
-  { code: 'W004', name: '名古屋物流センター', truckType: 'T06', maxPallets: 12 },
-  { code: 'W005', name: '大阪物流センター',   truckType: 'T06', maxPallets: 12 },
-  { code: 'W006', name: '福岡営業所',         truckType: 'T05', maxPallets: 8 },
+  { code: 'W001', name: '札幌物流センター',   truckType: 'T06' },
+  { code: 'W002', name: '仙台営業所',         truckType: 'T05' },
+  { code: 'W003', name: '東京物流センター',   truckType: 'T04' },
+  { code: 'W004', name: '名古屋物流センター', truckType: 'T06' },
+  { code: 'W005', name: '大阪物流センター',   truckType: 'T06' },
+  { code: 'W006', name: '福岡営業所',         truckType: 'T05' },
 ];
 
 /** 拠点規模シェア（%）: 基準在庫・在庫・予定出荷を按分する */
