@@ -3,18 +3,19 @@ import type {
   BaselineStock, LocationStock, PlannedSales, OperatingDays,
 } from './types';
 
-// ─── サンプルデータ（架空の中小・飲料メーカー）──────────────────────────
+// ─── サンプルデータ（架空の中小・金属/機械部品メーカー）──────────────────
 // 「サンプルで始める」で投入する一式。新規テナントが白紙から入力する手間を省く。
+// 事例: 板金・切削・鋳造などの部品を製造し、全国の物流拠点へパレット出荷する中小製造業。
 
 export const SAMPLE_FACTORIES: Factory[] = [
-  { code: 'F001', name: '関東工場' },
-  { code: 'F002', name: '関西工場' },
+  { code: 'F001', name: '本社工場' },
+  { code: 'F002', name: '第二工場' },
 ];
 
 /** 場所マスター（工場＝role:factory ／ 物流拠点＝role:warehouse） */
 export const SAMPLE_LOCATIONS: Location[] = [
-  { code: 'F001', name: '関東工場', role: 'factory' },
-  { code: 'F002', name: '関西工場', role: 'factory' },
+  { code: 'F001', name: '本社工場', role: 'factory' },
+  { code: 'F002', name: '第二工場', role: 'factory' },
   { code: 'W001', name: '札幌物流センター',   role: 'warehouse', truckType: 'T06' },
   { code: 'W002', name: '仙台営業所',         role: 'warehouse', truckType: 'T05' },
   { code: 'W003', name: '東京物流センター',   role: 'warehouse', truckType: 'T04' },
@@ -24,14 +25,14 @@ export const SAMPLE_LOCATIONS: Location[] = [
 ];
 
 export const SAMPLE_PRODUCTS: Product[] = [
-  { code: 'D001', name: '緑茶 500ml',           capacityPerPallet: 60,  palletType: 'P01', color: '#2ECC71', factoryCode: 'F001', equipmentName: 'お茶',     allowStackOnTop: true, boxWidthMM: 400, boxDepthMM: 300, boxHeightMM: 250, boxWeightKg: 13 },
-  { code: 'D002', name: '麦茶 600ml',           capacityPerPallet: 60,  palletType: 'P01', color: '#B7791F', factoryCode: 'F001', equipmentName: 'お茶',     allowStackOnTop: true, boxWidthMM: 410, boxDepthMM: 310, boxHeightMM: 280, boxWeightKg: 15 },
-  { code: 'D003', name: '天然水 500ml',         capacityPerPallet: 72,  palletType: 'P01', color: '#4A90D9', factoryCode: 'F001', equipmentName: '水',       allowStackOnTop: true, boxWidthMM: 400, boxDepthMM: 300, boxHeightMM: 230, boxWeightKg: 12 },
-  { code: 'D004', name: '微糖コーヒー 185g',    capacityPerPallet: 100, palletType: 'P02', color: '#8B5A2B', factoryCode: 'F002', equipmentName: 'コーヒー', allowStackOnTop: true, boxWidthMM: 390, boxDepthMM: 290, boxHeightMM: 130, boxWeightKg: 6.5 },
-  { code: 'D005', name: 'ブラックコーヒー 185g', capacityPerPallet: 100, palletType: 'P02', color: '#2C3E50', factoryCode: 'F002', equipmentName: 'コーヒー', allowStackOnTop: true, boxWidthMM: 390, boxDepthMM: 290, boxHeightMM: 130, boxWeightKg: 6.5 },
-  { code: 'D006', name: 'オレンジジュース 1L',  capacityPerPallet: 48,  palletType: 'P01', color: '#E67E22', factoryCode: 'F002', equipmentName: 'ジュース', allowStackOnTop: true, boxWidthMM: 330, boxDepthMM: 250, boxHeightMM: 250, boxWeightKg: 13 },
-  { code: 'D007', name: 'りんごジュース 1L',    capacityPerPallet: 48,  palletType: 'P01', color: '#E74C3C', factoryCode: 'F002', equipmentName: 'ジュース', allowStackOnTop: true, boxWidthMM: 330, boxDepthMM: 250, boxHeightMM: 250, boxWeightKg: 13 },
-  { code: 'D008', name: 'スポーツドリンク 500ml', capacityPerPallet: 60, palletType: 'P01', color: '#16A085', factoryCode: 'F001', equipmentName: '機能性', allowStackOnTop: true, boxWidthMM: 400, boxDepthMM: 300, boxHeightMM: 250, boxWeightKg: 13 },
+  { code: 'D001', name: 'ステーブラケット',   capacityPerPallet: 300, palletType: 'P01', color: '#2ECC71', factoryCode: 'F001', equipmentName: '板金部品', allowStackOnTop: true,  boxWidthMM: 350, boxDepthMM: 250, boxHeightMM: 150, boxWeightKg: 2.0 },
+  { code: 'D002', name: '取付プレート',       capacityPerPallet: 240, palletType: 'P01', color: '#B7791F', factoryCode: 'F001', equipmentName: '板金部品', allowStackOnTop: true,  boxWidthMM: 400, boxDepthMM: 300, boxHeightMM: 100, boxWeightKg: 3.0 },
+  { code: 'D003', name: 'ドライブシャフト',   capacityPerPallet: 150, palletType: 'P02', color: '#4A90D9', factoryCode: 'F001', equipmentName: '切削部品', allowStackOnTop: true,  boxWidthMM: 600, boxDepthMM: 150, boxHeightMM: 150, boxWeightKg: 5.0 },
+  { code: 'D004', name: '平歯車（ギア）',     capacityPerPallet: 400, palletType: 'P02', color: '#8B5A2B', factoryCode: 'F002', equipmentName: '切削部品', allowStackOnTop: true,  boxWidthMM: 220, boxDepthMM: 220, boxHeightMM: 120, boxWeightKg: 1.5 },
+  { code: 'D005', name: 'ギアハウジング',     capacityPerPallet: 120, palletType: 'P01', color: '#2C3E50', factoryCode: 'F002', equipmentName: '鋳造部品', allowStackOnTop: true,  boxWidthMM: 350, boxDepthMM: 320, boxHeightMM: 300, boxWeightKg: 6.0 },
+  { code: 'D006', name: '樹脂カバー',         capacityPerPallet: 400, palletType: 'P03', color: '#E67E22', factoryCode: 'F002', equipmentName: '樹脂部品', allowStackOnTop: false, boxWidthMM: 330, boxDepthMM: 260, boxHeightMM: 220, boxWeightKg: 1.0 },
+  { code: 'D007', name: 'フランジ継手',       capacityPerPallet: 300, palletType: 'P02', color: '#E74C3C', factoryCode: 'F002', equipmentName: '切削部品', allowStackOnTop: true,  boxWidthMM: 280, boxDepthMM: 280, boxHeightMM: 120, boxWeightKg: 2.5 },
+  { code: 'D008', name: 'ベースフレーム',     capacityPerPallet: 100, palletType: 'P01', color: '#16A085', factoryCode: 'F001', equipmentName: '溶接部品', allowStackOnTop: true,  boxWidthMM: 700, boxDepthMM: 450, boxHeightMM: 120, boxWeightKg: 8.0 },
 ];
 
 export const SAMPLE_WAREHOUSES: Warehouse[] = [
