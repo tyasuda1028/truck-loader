@@ -127,7 +127,7 @@ export default function DashboardPage() {
       {/* ── 1. KPIカード（週間合計） ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         {[
-          { label: '使用台数（週計）',    value: totalTrucks,               unit: '台',   accent: '#2563eb', bg: '#eff6ff', icon: '🚚' },
+          { label: '使用台数（週計）',    value: totalTrucks,               unit: '台',   accent: '#4f46e5', bg: '#eef2ff', icon: '🚚' },
           { label: '総パレット数（週計）', value: totalPallets,              unit: '枚',   accent: '#059669', bg: '#ecfdf5', icon: '📦' },
           { label: '総出荷個数（週計）',  value: totalQty.toLocaleString(),  unit: '個',   accent: '#d97706', bg: '#fffbeb', icon: '🧾' },
           { label: '出荷拠点数',          value: activeWhNames.size,         unit: '拠点', accent: '#7c3aed', bg: '#f5f3ff', icon: '🏢' },
@@ -152,7 +152,7 @@ export default function DashboardPage() {
         <div className="sys-panel">
           <div className="sys-section-header justify-between">
             <span>拠点別 積載計画（週間合計）</span>
-            <Link href="/loading-plan" className="font-normal text-blue-500 hover:underline" style={{ fontSize: 11 }}>
+            <Link href="/loading-plan" className="font-normal text-indigo-500 hover:underline" style={{ fontSize: 11 }}>
               詳細を見る →
             </Link>
           </div>
@@ -230,7 +230,7 @@ export default function DashboardPage() {
         <div className="sys-panel">
           <div className="sys-section-header justify-between">
             <span>工場 → 拠点 出荷フロー（曜日別）</span>
-            <Link href="/loading-plan" className="font-normal text-blue-500 hover:underline" style={{ fontSize: 11 }}>
+            <Link href="/loading-plan" className="font-normal text-indigo-500 hover:underline" style={{ fontSize: 11 }}>
               スケジュール・積載計画を見る →
             </Link>
           </div>
@@ -263,7 +263,7 @@ export default function DashboardPage() {
                   {/* 工場ヘッダ */}
                   <div className="flex items-center gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2">
                     <span className="rounded px-2 py-0.5 text-[10px] font-bold"
-                      style={{ background: '#dbeafe', color: '#1e40af', border: '1px solid #bfdbfe' }}>
+                      style={{ background: '#e0e7ff', color: '#3730a3', border: '1px solid #c7d2fe' }}>
                       {factory.code}
                     </span>
                     <span className="text-[13px] font-bold text-slate-800">{factory.name}</span>
@@ -368,7 +368,7 @@ export default function DashboardPage() {
             {allScheduledPlans.length === 0 && (
               <div className="py-8 text-center text-slate-400 text-sm italic">
                 出荷スケジュールが設定されていません。
-                <Link href="/loading-plan" className="ml-1 text-blue-500 underline">スケジュール・積載計画</Link>で設定してください。
+                <Link href="/loading-plan" className="ml-1 text-indigo-500 underline">スケジュール・積載計画</Link>で設定してください。
               </div>
             )}
           </div>
@@ -380,7 +380,7 @@ export default function DashboardPage() {
         <div className="sys-panel">
           <div className="sys-section-header justify-between">
             <span>今週の生産計画</span>
-            <Link href="/production" className="font-normal text-blue-500 hover:underline" style={{ fontSize: 11 }}>
+            <Link href="/production" className="font-normal text-indigo-500 hover:underline" style={{ fontSize: 11 }}>
               編集 →
             </Link>
           </div>
@@ -402,7 +402,7 @@ export default function DashboardPage() {
                       background: currentFactoryTab === f.code ? 'white' : 'transparent', marginBottom: -1,
                     }}
                   >
-                    <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 2, fontWeight: 700, background: '#dbeafe', color: '#1e40af', border: '1px solid #bfdbfe' }}>
+                    <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 2, fontWeight: 700, background: '#e0e7ff', color: '#3730a3', border: '1px solid #c7d2fe' }}>
                       {f.code}
                     </span>
                     {f.name}
@@ -453,7 +453,7 @@ export default function DashboardPage() {
                           <tr key={`fhdr-${factory.code}`} style={{ background: '#e8eef5' }}>
                             <td colSpan={4} style={{ padding: '6px 12px', border: '1px solid #e2e8f0' }}>
                               <div className="flex items-center gap-2">
-                                <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 2, fontWeight: 700, background: '#dbeafe', color: '#1e40af', border: '1px solid #bfdbfe' }}>{factory.code}</span>
+                                <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 2, fontWeight: 700, background: '#e0e7ff', color: '#3730a3', border: '1px solid #c7d2fe' }}>{factory.code}</span>
                                 <span style={{ fontSize: 12, fontWeight: 700, color: '#1e3a5f' }}>{factory.name}</span>
                               </div>
                             </td>
@@ -482,9 +482,9 @@ export default function DashboardPage() {
                         })}
                         {(showAll && factoriesWithProducts.length > 1) && (
                           <tr key={`sub-${factory.code}`} style={{ background: '#eef4fb' }}>
-                            <td colSpan={2} style={{ padding: '4px 12px', fontSize: 11, fontWeight: 700, color: '#1e40af', border: '1px solid #e2e8f0' }}>{factory.name} 小計</td>
-                            <td style={{ padding: '4px 10px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: '#1e40af', border: '1px solid #e2e8f0' }}>{factoryQty.toLocaleString()}個</td>
-                            <td style={{ padding: '4px 10px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: '#1e40af', border: '1px solid #e2e8f0' }}>{factoryPals}枚</td>
+                            <td colSpan={2} style={{ padding: '4px 12px', fontSize: 11, fontWeight: 700, color: '#3730a3', border: '1px solid #e2e8f0' }}>{factory.name} 小計</td>
+                            <td style={{ padding: '4px 10px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: '#3730a3', border: '1px solid #e2e8f0' }}>{factoryQty.toLocaleString()}個</td>
+                            <td style={{ padding: '4px 10px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: '#3730a3', border: '1px solid #e2e8f0' }}>{factoryPals}枚</td>
                           </tr>
                         )}
                       </>

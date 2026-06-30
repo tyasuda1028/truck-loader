@@ -57,7 +57,7 @@ export function BiometricLock() {
   return (
     <div
       className="fixed inset-0 z-[200] flex flex-col items-center justify-center"
-      style={{ background: 'linear-gradient(135deg,#6366f1 0%,#3b82f6 50%,#06b6d4 100%)' }}
+      style={{ background: 'linear-gradient(135deg,#6366f1 0%,#4f46e5 50%,#06b6d4 100%)' }}
     >
       <span style={{ color: '#fff', fontWeight: 900, fontSize: 88, lineHeight: 1, letterSpacing: -2 }}>ス</span>
       <p className="mt-4 text-white/90 text-sm">ロックされています</p>

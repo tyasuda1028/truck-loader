@@ -27,8 +27,8 @@ export default function BrandLogo({
     >
       <defs>
         <linearGradient id="smkb-load-grad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#3b82f6" />
-          <stop offset="1" stopColor="#60a5fa" />
+          <stop offset="0" stopColor="#6e72f2" />
+          <stop offset="1" stopColor="#4338ca" />
         </linearGradient>
       </defs>
       <rect x="0" y="0" width="100" height="100" rx={rounded} fill="url(#smkb-load-grad)" />

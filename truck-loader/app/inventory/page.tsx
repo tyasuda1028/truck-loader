@@ -327,7 +327,7 @@ export default function InventoryPage() {
                 <th className="sticky left-60 bg-slate-50 z-20 border-r-2 border-slate-300" />
                 {activeWarehouses.map((wh) => (
                   <>
-                    <th key={`${wh.code}-cur`} className="px-2 py-1.5 text-center text-slate-500 font-medium border-l border-slate-200 w-16 bg-blue-50/40">
+                    <th key={`${wh.code}-cur`} className="px-2 py-1.5 text-center text-slate-500 font-medium border-l border-slate-200 w-16 bg-indigo-50/40">
                       現在庫<br /><span className="text-[9px] text-slate-400 font-normal">（編集可）</span>
                     </th>
                     {hasInTransit && (
@@ -428,7 +428,7 @@ export default function InventoryPage() {
                                   return (
                                     <>
                                       <td key={`${p.code}-${wh.code}-cur`}
-                                        className="px-1 py-1.5 text-center border-l border-slate-200 bg-blue-50/30">
+                                        className="px-1 py-1.5 text-center border-l border-slate-200 bg-indigo-50/30">
                                         {baseline === 0 ? (
                                           <span className="text-slate-200">—</span>
                                         ) : (

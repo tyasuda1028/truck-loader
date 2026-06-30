@@ -27,12 +27,12 @@ export function UserMenu() {
         style={{
           fontSize: 13,
           fontWeight: 700,
-          color: '#2563eb',
+          color: '#4f46e5',
           textDecoration: 'none',
           padding: '6px 12px',
-          border: '1px solid #bfdbfe',
+          border: '1px solid #c7d2fe',
           borderRadius: 8,
-          background: '#eff6ff',
+          background: '#eef2ff',
         }}
       >
         ログイン
@@ -63,7 +63,7 @@ export function UserMenu() {
             width: 32,
             height: 32,
             borderRadius: '50%',
-            background: '#2563eb',
+            background: '#4f46e5',
             color: 'white',
             display: 'flex',
             alignItems: 'center',

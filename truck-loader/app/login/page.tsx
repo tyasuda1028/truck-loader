@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { signIn } from '@/lib/authClient';
 import Link from 'next/link';
 import BrandLogo from '@/components/BrandLogo';
+import WebOnly from '@/components/WebOnly';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -38,7 +39,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="mb-4 inline-block">
@@ -62,7 +63,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 placeholder="example@company.com"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
               />
             </div>
 
@@ -76,7 +77,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 placeholder="••••••••"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
               />
             </div>
 
@@ -89,18 +90,21 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? 'ログイン中...' : 'ログイン'}
             </button>
           </form>
 
-          <div className="mt-6 text-center text-sm text-gray-500">
-            アカウントをお持ちでない方は{' '}
-            <Link href="/register" className="text-blue-600 hover:underline font-medium">
-              新規登録
-            </Link>
-          </div>
+          {/* ネイティブ(iOS)では新規登録(アカウント作成)導線を出さない（App Store 3.1.3(a)/3.1.1） */}
+          <WebOnly>
+            <div className="mt-6 text-center text-sm text-gray-500">
+              アカウントをお持ちでない方は{' '}
+              <Link href="/register" className="text-indigo-600 hover:underline font-medium">
+                新規登録
+              </Link>
+            </div>
+          </WebOnly>
 
           <div className="mt-5 pt-5 border-t border-gray-100">
             <button
@@ -120,7 +124,10 @@ export default function LoginPage() {
           拠点間の出荷配車・積載計画を見える化するクラウドツール
         </p>
         <div className="mt-3 flex justify-center gap-4 text-xs text-gray-400">
-          <Link href="/pricing" className="hover:text-gray-600 hover:underline">料金プラン</Link>
+          {/* ネイティブ(iOS)では料金プラン(外部課金導線)へのリンクを出さない（App Store 3.1.3(a)/3.1.1） */}
+          <WebOnly>
+            <Link href="/pricing" className="hover:text-gray-600 hover:underline">料金プラン</Link>
+          </WebOnly>
           <Link href="/privacy" className="hover:text-gray-600 hover:underline">プライバシーポリシー</Link>
           <Link href="/support" className="hover:text-gray-600 hover:underline">サポート</Link>
         </div>

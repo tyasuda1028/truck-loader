@@ -1663,8 +1663,8 @@ export default function ProductionPage() {
       {/* ── タブ⑤：送り数設定 ── */}
       {activeTab === 'sendqty' && (
         <div className="flex flex-col gap-6">
-          <div className="text-xs text-slate-500 bg-blue-50 border border-blue-200 rounded px-3 py-2">
-            💡 基準在庫数・在庫・生産計画から<strong className="text-blue-700">自動計算された送り数</strong>を確認し、必要に応じて直接修正できます。
+          <div className="text-xs text-slate-500 bg-indigo-50 border border-indigo-200 rounded px-3 py-2">
+            💡 基準在庫数・在庫・生産計画から<strong className="text-indigo-700">自動計算された送り数</strong>を確認し、必要に応じて直接修正できます。
             手動入力した値は青色で表示され、積載計画・出荷スケジュールに反映されます。空欄にすると自動計算値に戻ります。
           </div>
 
@@ -1729,7 +1729,7 @@ export default function ProductionPage() {
                             const qty = row.whQty[wc] ?? 0;
                             return (
                               <td key={wc} className="px-2 py-1.5 text-center text-slate-600">
-                                {qty > 0 ? <span className="font-medium text-blue-600">{qty.toLocaleString()}</span> : <span className="text-slate-300">—</span>}
+                                {qty > 0 ? <span className="font-medium text-indigo-600">{qty.toLocaleString()}</span> : <span className="text-slate-300">—</span>}
                               </td>
                             );
                           })}
@@ -1747,7 +1747,7 @@ export default function ProductionPage() {
                   disabled={sendQtyImported || demo}
                   className={clsx(
                     'px-4 py-2 text-sm rounded-lg transition-colors',
-                    sendQtyImported ? 'bg-emerald-100 text-emerald-700 cursor-default' : 'bg-blue-600 text-white hover:bg-blue-700',
+                    sendQtyImported ? 'bg-emerald-100 text-emerald-700 cursor-default' : 'bg-indigo-600 text-white hover:bg-indigo-700',
                   )}
                 >
                   {sendQtyImported ? '✓ インポート済み' : 'インポートする'}
@@ -1826,7 +1826,7 @@ export default function ProductionPage() {
                                 const hasManual = displayWarehouses.some((wh) =>
                                   (warehousesByName.get(wh.name) ?? [wh]).some(w => (sendQtyManual[p.code]?.[w.code] ?? 0) > 0));
                                 return (
-                                  <tr key={p.code} className={clsx('border-t border-slate-100 hover:bg-slate-50', hasManual && 'bg-blue-50/30')}>
+                                  <tr key={p.code} className={clsx('border-t border-slate-100 hover:bg-slate-50', hasManual && 'bg-indigo-50/30')}>
                                     <td className="px-3 py-1.5 sticky left-0 bg-white z-10 border-r border-slate-200 font-mono text-[11px] text-slate-500">{p.code}</td>
                                     <td className="px-3 py-1.5 sticky left-32 bg-white z-10 border-r border-slate-200">
                                       <div className="flex items-center gap-1.5">
@@ -1862,8 +1862,8 @@ export default function ProductionPage() {
                                               className={clsx(
                                                 'w-16 text-center border rounded px-1 py-0.5 text-xs focus:outline-none',
                                                 isManual
-                                                  ? 'border-blue-400 bg-blue-50 text-blue-700 font-semibold focus:ring-1 focus:ring-blue-400'
-                                                  : 'border-slate-200 bg-white text-slate-600 focus:border-blue-400 focus:ring-1 focus:ring-blue-300',
+                                                  ? 'border-indigo-400 bg-indigo-50 text-indigo-700 font-semibold focus:ring-1 focus:ring-indigo-400'
+                                                  : 'border-slate-200 bg-white text-slate-600 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-300',
                                               )}
                                             />
                                           </div>
@@ -1872,7 +1872,7 @@ export default function ProductionPage() {
                                     })}
                                     <td className="px-3 py-1.5 text-right font-semibold">
                                       {rowTotal > 0
-                                        ? <span className={hasManual ? 'text-blue-600' : 'text-slate-700'}>{rowTotal.toLocaleString()}個</span>
+                                        ? <span className={hasManual ? 'text-indigo-600' : 'text-slate-700'}>{rowTotal.toLocaleString()}個</span>
                                         : <span className="text-slate-300">—</span>}
                                     </td>
                                   </tr>
@@ -1892,7 +1892,7 @@ export default function ProductionPage() {
                               const hasM = factoryProducts.some((p) =>
                                 whCodes.some(w => (sendQtyManual[p.code]?.[w.code] ?? 0) > 0));
                               return (
-                                <td key={wh.name} className={clsx('px-2 py-1.5 text-center text-xs font-bold', hasM ? 'text-blue-600' : 'text-indigo-600')}>
+                                <td key={wh.name} className={clsx('px-2 py-1.5 text-center text-xs font-bold', hasM ? 'text-indigo-600' : 'text-indigo-600')}>
                                   {subtotal > 0 ? `${subtotal.toLocaleString()}個` : '—'}
                                 </td>
                               );
@@ -1929,7 +1929,7 @@ export default function ProductionPage() {
                         const hasM = filteredProducts.some((p) =>
                           whCodes.some(w => (sendQtyManual[p.code]?.[w.code] ?? 0) > 0));
                         return (
-                          <td key={wh.name} className={clsx('px-2 py-2 text-center', hasM ? 'text-blue-600' : 'text-slate-600')}>
+                          <td key={wh.name} className={clsx('px-2 py-2 text-center', hasM ? 'text-indigo-600' : 'text-slate-600')}>
                             {total > 0 ? `${total.toLocaleString()}個` : '—'}
                           </td>
                         );

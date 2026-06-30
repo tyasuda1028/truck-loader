@@ -51,7 +51,7 @@ export function ContactForm() {
     );
   }
 
-  const inputCls = 'w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500';
+  const inputCls = 'w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 outline-none focus:border-indigo-500';
   const labelCls = 'block text-xs font-semibold text-gray-600 mb-1';
 
   return (
@@ -84,12 +84,12 @@ export function ContactForm() {
       <button
         type="submit"
         disabled={busy}
-        className="w-full rounded-lg bg-blue-600 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+        className="w-full rounded-lg bg-indigo-600 py-3 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60"
       >
         {busy ? '送信中…' : '送信する'}
       </button>
       <p className="text-center text-xs text-gray-400">
-        送信により<a href="/privacy" className="text-blue-600 hover:underline">プライバシーポリシー</a>に同意したものとみなします。
+        送信により<a href="/privacy" className="text-indigo-600 hover:underline">プライバシーポリシー</a>に同意したものとみなします。
       </p>
     </form>
   );

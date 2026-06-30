@@ -6,7 +6,7 @@ import { useState } from 'react';
 export default function SubscribeButton({
   plan = 'standard_monthly',
   label = 'カードで申し込む',
-  className = 'inline-block rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60',
+  className = 'inline-block rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60',
 }: { plan?: string; label?: string; className?: string }) {
   const [busy, setBusy] = useState(false);
   async function go() {

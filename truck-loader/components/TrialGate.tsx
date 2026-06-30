@@ -148,20 +148,22 @@ function LockScreen({ ent, native }: { ent: Ent | null; native: boolean }) {
         Standard プランはカード決済ですぐにご利用を再開できます。
       </p>
       <div className="mt-6 flex flex-col gap-2 w-full max-w-xs">
-        <SubscribeButton plan="standard_monthly" label="Standard 月額で申し込む（カード）" className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60" />
-        <SubscribeButton plan="standard_yearly" label="Standard 年額（2ヶ月分お得）" className="rounded-lg border border-blue-600 px-5 py-3 text-sm font-bold text-blue-600 hover:bg-blue-50 disabled:opacity-60" />
+        <SubscribeButton plan="standard_monthly" label="Standard 月額で申し込む（カード）" className="rounded-lg bg-indigo-600 px-5 py-3 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60" />
+        <SubscribeButton plan="standard_yearly" label="Standard 年額（2ヶ月分お得）" className="rounded-lg border border-indigo-600 px-5 py-3 text-sm font-bold text-indigo-600 hover:bg-indigo-50 disabled:opacity-60" />
       </div>
-      <a href="/pricing" className="mt-4 text-sm text-blue-600 underline">料金プランを見る</a>
+      <a href="/pricing" className="mt-4 text-sm text-indigo-600 underline">料金プランを見る</a>
       <a href="/contact" className="mt-2 text-xs text-gray-500 underline">上位プラン・お見積りのお問い合わせ</a>
     </div>
   );
 }
 
-/** ネイティブ初回のログイン/新規登録画面（トークン認証）＋デモ導線 */
+/**
+ * ネイティブ初回のログイン画面（トークン認証）＋デモ導線。
+ * App Store ガイドライン 3.1.3(a)/3.1.1 対応：ネイティブでは新規登録（会社名・氏名・メール・
+ * パスワードのアカウント作成フォーム）や外部課金導線を一切出さない。ログイン or デモのみ。
+ * アカウントの新規作成は Web版（ブラウザ）からの案内に限定する。
+ */
 function NativeLoginGate({ onDone }: { onDone: () => void }) {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [companyName, setCompanyName] = useState('');
-  const [userName, setUserName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -177,28 +179,6 @@ function NativeLoginGate({ onDone }: { onDone: () => void }) {
     } else {
       setBusy(false);
       setError(res.message ?? 'ログインに失敗しました');
-    }
-  };
-
-  const register = async () => {
-    if (!companyName.trim() || !userName.trim() || !email.trim() || !password) { setError('全ての項目を入力してください'); return; }
-    if (password.length < 8) { setError('パスワードは8文字以上にしてください'); return; }
-    setBusy(true);
-    try {
-      const res = await fetch(`${syncApiBase()}/api/register`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyName: companyName.trim(), userName: userName.trim(), email: email.trim(), password }),
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        setBusy(false); setError(d?.message ?? '登録に失敗しました'); return;
-      }
-      // 登録成功→そのままログイン（30日トライアル開始）
-      const lr = await cloudLogin(email.trim(), password);
-      if (lr.ok) { try { localStorage.setItem('truckloader.dataSource', 'local'); } catch { /* ignore */ } onDone(); }
-      else { setBusy(false); setError(lr.message ?? 'ログインに失敗しました'); }
-    } catch {
-      setBusy(false); setError('通信エラーが発生しました');
     }
   };
 
@@ -219,25 +199,14 @@ function NativeLoginGate({ onDone }: { onDone: () => void }) {
         <div className="text-center mb-6">
           <BrandLogo size={56} rounded={14} className="mx-auto mb-3" />
           <h1 className="text-lg font-bold text-gray-900">スマコウバ積載</h1>
-          <p className="text-xs text-gray-500 mt-1">
-            {mode === 'login' ? 'ログインして利用を開始' : '新規登録（30日間 無料トライアル）'}
-          </p>
+          <p className="text-xs text-gray-500 mt-1">ログインして利用を開始</p>
         </div>
         <div className="flex flex-col gap-3">
-          {mode === 'register' && (
-            <>
-              <input className={inputCls} placeholder="会社名" value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
-              <input className={inputCls} placeholder="お名前" value={userName} onChange={(e) => setUserName(e.target.value)} />
-            </>
-          )}
           <input className={inputCls} type="email" inputMode="email" placeholder="メールアドレス" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <input className={inputCls} type="password" placeholder={mode === 'register' ? 'パスワード（8文字以上）' : 'パスワード'} value={password} onChange={(e) => setPassword(e.target.value)} />
+          <input className={inputCls} type="password" placeholder="パスワード" value={password} onChange={(e) => setPassword(e.target.value)} />
           {error && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">{error}</div>}
-          <button onClick={mode === 'login' ? login : register} disabled={busy} className="rounded-lg bg-blue-600 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60">
-            {busy ? '処理中…' : mode === 'login' ? 'ログイン' : '無料で始める'}
-          </button>
-          <button onClick={() => { setError(''); setMode(mode === 'login' ? 'register' : 'login'); }} className="text-xs text-blue-600 hover:underline">
-            {mode === 'login' ? 'アカウントをお持ちでない方は新規登録（30日無料）' : 'すでにアカウントをお持ちの方はログイン'}
+          <button onClick={login} disabled={busy} className="rounded-lg bg-indigo-600 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-60">
+            {busy ? '処理中…' : 'ログイン'}
           </button>
         </div>
         <div className="border-t border-gray-100 mt-5 pt-4">

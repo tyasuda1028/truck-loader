@@ -498,7 +498,7 @@ export default function SettingsPage() {
                           <td className="px-3 py-1.5 border-r border-slate-200">
                             <span className={clsx(
                               'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
-                              isNew ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700',
+                              isNew ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700',
                             )}>
                               {isNew ? '新規' : '更新'}
                             </span>
@@ -1099,7 +1099,7 @@ export default function SettingsPage() {
                           className={clsx(
                             'w-9 h-9 rounded-lg text-xs font-bold border-2 transition-all',
                             active
-                              ? i >= 5 ? 'border-blue-400 bg-blue-500 text-white' : 'border-brand-500 bg-brand-600 text-white'
+                              ? i >= 5 ? 'border-indigo-400 bg-indigo-500 text-white' : 'border-brand-500 bg-brand-600 text-white'
                               : 'border-slate-200 bg-slate-50 text-slate-300',
                           )}
                         >
@@ -1209,7 +1209,7 @@ function OperatingCalendar({
         {DAY_LABELS_CAL.map((label, i) => (
           <div key={i} className={clsx(
             'text-center text-[10px] font-bold py-1',
-            i === 5 ? 'text-blue-500' : i === 6 ? 'text-red-500' : 'text-slate-500',
+            i === 5 ? 'text-indigo-500' : i === 6 ? 'text-red-500' : 'text-slate-500',
           )}>
             {label}
           </div>
@@ -1258,7 +1258,7 @@ function OperatingCalendar({
             >
               <span className={clsx(
                 'font-bold text-sm leading-none',
-                isSat && !isNonWorking && !isDefaultOff ? 'text-blue-600' :
+                isSat && !isNonWorking && !isDefaultOff ? 'text-indigo-600' :
                 isSun && !isNonWorking && !isDefaultOff ? 'text-red-500' : '',
               )}>
                 {day}
@@ -1982,8 +1982,8 @@ function calcPalletLayout(
 // ─── パレット配置図コンポーネント ──────────────────────────────────────────
 
 const BOX_COLORS = [
-  '#93c5fd', '#86efac', '#fcd34d', '#f9a8d4', '#a5b4fc',
-  '#6ee7b7', '#fdba74', '#e9d5ff', '#99f6e4', '#bfdbfe',
+  '#a5b4fc', '#86efac', '#fcd34d', '#f9a8d4', '#a5b4fc',
+  '#6ee7b7', '#fdba74', '#e9d5ff', '#99f6e4', '#c7d2fe',
 ];
 
 function PalletDiagram({

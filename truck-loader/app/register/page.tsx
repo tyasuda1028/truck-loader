@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import BrandLogo from '@/components/BrandLogo';
+import WebOnly from '@/components/WebOnly';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -83,6 +84,19 @@ export default function RegisterPage() {
           <p style={{ fontSize: 14, color: '#6b7280' }}>新規アカウント登録（無料）</p>
         </div>
 
+        <WebOnly
+          fallback={
+            <div style={{ textAlign: 'center', fontSize: 14, color: '#4b5563', lineHeight: 1.7 }}>
+              <p>アカウントの新規作成はWeb版（ブラウザ）からお願いします。</p>
+              <p style={{ marginTop: 16 }}>
+                既にアカウントをお持ちの方は{' '}
+                <Link href="/login" style={{ color: '#4f46e5', fontWeight: 600, textDecoration: 'none' }}>
+                  ログイン
+                </Link>
+              </p>
+            </div>
+          }
+        >
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
@@ -178,7 +192,7 @@ export default function RegisterPage() {
             style={{
               width: '100%',
               padding: '11px 0',
-              background: loading ? '#93c5fd' : '#2563eb',
+              background: loading ? '#a5b4fc' : '#4f46e5',
               color: 'white',
               border: 'none',
               borderRadius: 8,
@@ -194,10 +208,11 @@ export default function RegisterPage() {
 
         <p style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: '#6b7280' }}>
           すでにアカウントをお持ちの方は{' '}
-          <Link href="/login" style={{ color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}>
+          <Link href="/login" style={{ color: '#4f46e5', fontWeight: 600, textDecoration: 'none' }}>
             ログイン
           </Link>
         </p>
+        </WebOnly>
       </div>
     </div>
   );

@@ -147,13 +147,13 @@ export default function SchedulePage() {
             onClick={() => setSelectedFactory(f.code)}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors"
             style={{
-              borderBottom: selectedFactory === f.code ? '2px solid #2563eb' : '2px solid transparent',
-              color: selectedFactory === f.code ? '#2563eb' : '#6b7280',
+              borderBottom: selectedFactory === f.code ? '2px solid #4f46e5' : '2px solid transparent',
+              color: selectedFactory === f.code ? '#4f46e5' : '#6b7280',
               marginBottom: -1,
               background: 'none', cursor: 'pointer',
             }}
           >
-            <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, fontWeight: 700, background: '#dbeafe', color: '#1e40af', border: '1px solid #bfdbfe' }}>
+            <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, fontWeight: 700, background: '#e0e7ff', color: '#3730a3', border: '1px solid #c7d2fe' }}>
               {f.code}
             </span>
             {f.name}
@@ -170,7 +170,7 @@ export default function SchedulePage() {
       ) : (
         <>
           <div className="flex items-center gap-2 mb-4">
-            <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, fontWeight: 700, background: '#dbeafe', color: '#1e40af', border: '1px solid #bfdbfe' }}>{factory.code}</span>
+            <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, fontWeight: 700, background: '#e0e7ff', color: '#3730a3', border: '1px solid #c7d2fe' }}>{factory.code}</span>
             <span className="text-sm font-semibold text-slate-700">{factory.name}</span>
             <span style={{ fontSize: 11, color: '#9ca3af' }}>
               — 製品 {factoryProducts.length}種 / 対象拠点 {relevantWarehouses.length}拠点
@@ -189,11 +189,11 @@ export default function SchedulePage() {
                   {weekDates.map((date, i) => (
                     <th key={i} style={{
                       padding: '8px 6px', textAlign: 'center', minWidth: 88,
-                      color: i === 5 ? '#2563eb' : i === 6 ? '#dc2626' : '#6b7280',
+                      color: i === 5 ? '#4f46e5' : i === 6 ? '#dc2626' : '#6b7280',
                       fontWeight: 600,
                     }}>
                       <div style={{ fontSize: 13, fontWeight: 700 }}>{DAY_LABELS[i]}</div>
-                      <div style={{ fontSize: 10, fontWeight: 400, color: i === 5 ? '#93c5fd' : i === 6 ? '#fca5a5' : '#9ca3af' }}>
+                      <div style={{ fontSize: 10, fontWeight: 400, color: i === 5 ? '#a5b4fc' : i === 6 ? '#fca5a5' : '#9ca3af' }}>
                         {formatMD(date)}
                       </div>
                     </th>
@@ -240,8 +240,8 @@ export default function SchedulePage() {
                                   width: 80,
                                   minHeight: hasQty ? 64 : 36,
                                   borderRadius: 6,
-                                  border: active ? '2px solid #2563eb' : '2px solid #e5e7eb',
-                                  background: active ? '#eff6ff' : 'white',
+                                  border: active ? '2px solid #4f46e5' : '2px solid #e5e7eb',
+                                  background: active ? '#eef2ff' : 'white',
                                   cursor: 'pointer',
                                   transition: 'all 0.15s',
                                   display: 'flex',
@@ -254,10 +254,10 @@ export default function SchedulePage() {
                               >
                                 {active ? (
                                   <>
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#2563eb' }}>✓</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#4f46e5' }}>✓</span>
                                     {hasQty ? (
                                       <>
-                                        <span style={{ fontSize: 9, color: '#1d4ed8', fontWeight: 700 }}>
+                                        <span style={{ fontSize: 9, color: '#4338ca', fontWeight: 700 }}>
                                           {cellPlan.trucks.length}台
                                         </span>
                                         <span style={{ fontSize: 9, color: '#374151', fontWeight: 600 }}>
@@ -268,7 +268,7 @@ export default function SchedulePage() {
                                         </span>
                                       </>
                                     ) : (
-                                      <span style={{ fontSize: 9, color: '#93c5fd' }}>計画なし</span>
+                                      <span style={{ fontSize: 9, color: '#a5b4fc' }}>計画なし</span>
                                     )}
                                   </>
                                 ) : (
@@ -282,7 +282,7 @@ export default function SchedulePage() {
                         {/* 週間集計列 */}
                         <td style={{ padding: '8px 12px', textAlign: 'center' }}>
                           {activeDayCount > 0 ? (
-                            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: '#eef2ff', color: '#4f46e5', border: '1px solid #c7d2fe' }}>
                               {activeDayCount}日
                             </span>
                           ) : (

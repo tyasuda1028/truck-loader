@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import TermsPlanNote from '@/components/TermsPlanNote';
 
 export const metadata: Metadata = {
   title: '利用規約｜スマコウバ積載',
@@ -28,7 +29,7 @@ export default function TermsPage() {
       <h2 className="mt-8 text-lg font-bold text-gray-900">2. 料金プラン（無料／法人Pro）</h2>
       <ul className="mt-2 list-disc pl-6 space-y-1">
         <li>本アプリは App Store で<strong>無料</strong>で提供し、アプリ内課金はありません。</li>
-        <li>Pro機能（複数拠点の積載計画、CSVインポート/エクスポート、PDF出力、クラウド同期）は、<strong>会社単位の法人契約（アプリ外でのお申し込み・クレジットカード決済）</strong>でご利用いただけます。料金・条件は<a className="text-blue-600 underline" href="/pricing">料金ページ</a>または当方へのお問い合わせにてご案内します。</li>
+        <TermsPlanNote />
       </ul>
 
       <h2 className="mt-8 text-lg font-bold text-gray-900">3. 契約・解約・返金</h2>
@@ -40,7 +41,7 @@ export default function TermsPage() {
       <h2 className="mt-8 text-lg font-bold text-gray-900">4. データの取扱い</h2>
       <p className="mt-2">
         個人情報・データの取扱いは
-        <a className="text-blue-600 underline" href="/privacy">プライバシーポリシー</a>
+        <a className="text-indigo-600 underline" href="/privacy">プライバシーポリシー</a>
         に従います。
       </p>
 
@@ -56,7 +57,7 @@ export default function TermsPage() {
       <h2 className="mt-8 text-lg font-bold text-gray-900">7. Apple 標準EULA</h2>
       <p className="mt-2">
         本規約に定めのない事項については、Apple の
-        <a className="text-blue-600 underline" href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" target="_blank" rel="noopener noreferrer">
+        <a className="text-indigo-600 underline" href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" target="_blank" rel="noopener noreferrer">
           標準使用許諾契約（Licensed Application End User License Agreement）
         </a>
         が適用されます。
@@ -66,7 +67,7 @@ export default function TermsPage() {
       <p className="mt-2">
         スマコウバ運営事務局
         <br />
-        メール：<a className="text-blue-600 underline" href="mailto:sophie83101028@gmail.com">sophie83101028@gmail.com</a>
+        メール：<a className="text-indigo-600 underline" href="mailto:sophie83101028@gmail.com">sophie83101028@gmail.com</a>
       </p>
 
       <p className="mt-10 text-xs text-gray-400">© 2026 スマコウバ運営事務局</p>

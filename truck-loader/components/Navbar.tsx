@@ -82,12 +82,12 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
             className={clsx(
               'flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all',
               active
-                ? 'bg-blue-50 text-blue-700'
+                ? 'bg-indigo-50 text-indigo-700'
                 : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800',
             )}
-            style={active ? { borderLeft: '3px solid #2563eb', paddingLeft: 9 } : { borderLeft: '3px solid transparent', paddingLeft: 9 }}
+            style={active ? { borderLeft: '3px solid #4f46e5', paddingLeft: 9 } : { borderLeft: '3px solid transparent', paddingLeft: 9 }}
           >
-            <span className={active ? 'text-blue-600' : 'text-gray-400'}>
+            <span className={active ? 'text-indigo-600' : 'text-gray-400'}>
               {icon}
             </span>
             {label}

@@ -96,7 +96,7 @@ export default function PrivacyPage() {
       <p className="mt-2">
         運営者：スマコウバ運営事務局
         <br />
-        メール：<a className="text-blue-600 underline" href="mailto:sophie83101028@gmail.com">sophie83101028@gmail.com</a>
+        メール：<a className="text-indigo-600 underline" href="mailto:sophie83101028@gmail.com">sophie83101028@gmail.com</a>
       </p>
 
       <p className="mt-10 text-xs text-gray-400">© 2026 スマコウバ運営事務局</p>

@@ -1,19 +1,19 @@
 /**
  * 画面向き（ネイティブのみ）。
  *
- * 方針: 全画面で横向き（landscape）に固定。現場で表・荷台図を見る用途に最適。
- * iOSは Info.plist の UISupportedInterfaceOrientations を Landscape のみにして固定し、
- * 念のため起動時に ScreenOrientation でも landscape にロックする。
+ * 方針: 自由回転（縦／横どちらも可）。iOSは Info.plist の
+ * UISupportedInterfaceOrientations で全方向を許可し、起動時に ScreenOrientation の
+ * ロックを解除しておく（旧バージョンで横向き固定していた名残を念のため解除）。
  * Web/ブラウザでは何もしない。
  */
 import { Capacitor } from '@capacitor/core';
 
-/** 横向きに固定する */
-export async function lockLandscape(): Promise<void> {
+/** 画面向きのロックを解除して自由回転にする */
+export async function unlockOrientation(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
   try {
     const { ScreenOrientation } = await import('@capacitor/screen-orientation');
-    await ScreenOrientation.lock({ orientation: 'landscape' });
+    await ScreenOrientation.unlock();
   } catch {
     /* プラグイン未導入/未対応端末では何もしない */
   }
